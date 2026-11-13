@@ -1,4 +1,5 @@
 import { StorageFactory } from '../../storage-adapter.js';
+import { resolveClientProfile } from './client-profile.js';
 import {
     migrateConfigSettings,
     formatBytes,
@@ -812,6 +813,21 @@ export async function handleMisubRequest(context) {
 
     // 使用统一的确定目标格式的方法（此方法中包含了处理各类客户端如 Surge 等对应版本的最新支持规则）
     let targetFormat = determineTargetFormat(userAgentHeader, url.searchParams);
+    let clientProfile;
+    try {
+        clientProfile = resolveClientProfile(url.searchParams);
+    } catch {
+        return new Response('Unknown full configuration client', { status: 400 });
+    }
+    if (
+        clientProfile &&
+        (targetFormat !== 'clash' || isExternalMode || url.searchParams.get('list') === 'true')
+    ) {
+        return new Response(
+            'Full client configurations require target=clash and the built-in engine without list=true',
+            { status: 400 }
+        );
+    }
 
     // [Access Log] Record access log and stats if enabled
     if (!url.searchParams.has('callback_token') && !shouldSkipLogging && config.enableAccessLog) {
@@ -1347,6 +1363,8 @@ export async function handleMisubRequest(context) {
         }),
         fileName: subName,
         managedConfigUrl: '',
+        clientProfile,
+        strictPolicies: Boolean(clientProfile),
         interval: config.UpdateInterval || 86400,
         skipCertVerify: finalSkipCertVerify,
         enableUdp: finalEnableUdp,

@@ -2,6 +2,7 @@ import { groupNodeLinesByRegion } from './region-groups.js';
 import { AI_SERVICE_RULES } from './builtin-rules-provider.js';
 import { DNS_PROXY_GROUP } from './safe-dns.js';
 import { isProtectedPolicy } from './policy-guard.js';
+import { projectClientRules } from './client-profile.js';
 
 /**
  * 解析并扩展策略组中的正则过滤器
@@ -31,6 +32,7 @@ function resolveGroupFilters(model) {
                     }
                 });
             } catch (e) {
+                if (model.meta?.strictPolicies) throw new Error('Invalid node filter expression');
                 console.warn(`[Template Processor] Invalid regex filter: ${filter}`, e);
             }
         });
@@ -343,6 +345,7 @@ function ensureAiPolicy(model) {
  * @param {Object} model - 统一模板模型
  */
 export function applySmartModelOptimizations(model) {
+    projectClientRules(model);
     const { ruleLevel } = model.meta || {};
     const normalizedLevel = (ruleLevel || '').toLowerCase();
     const isCustomOrNone = !normalizedLevel || normalizedLevel === 'none';

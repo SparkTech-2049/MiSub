@@ -21,8 +21,9 @@ import yaml from 'js-yaml';
 import { urlsToClashProxies } from '../utils/url-to-clash.js';
 import { resolveSafeDnsConfig } from '../modules/subscription/safe-dns.js';
 import { applyMihomoChainProxyToClashConfig } from '../modules/subscription/mihomo-chain-proxy.js';
-import { guardPolicyGraph } from '../modules/subscription/policy-guard.js';
+import { guardClashPolicyConfig } from '../modules/subscription/policy-guard.js';
 import { parseRoutingRule } from '../modules/subscription/rule-syntax.js';
+import { adaptShadowrocketYaml } from '../modules/subscription/client-profile.js';
 
 function getTemplateExtension(templateUrl) {
     const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
@@ -124,6 +125,9 @@ export function renderClashYamlProfileTemplate(templateText, nodeList, options =
         .map((line) => line.trim())
         .filter((line) => line && !line.startsWith('#'));
     const proxies = urlsToClashProxies(nodeUrls, options).map(stripInternalProxyFields);
+    if (options.strictPolicies && proxies.length !== nodeUrls.length) {
+        throw new Error('A node could not be converted to the requested full configuration');
+    }
     deduplicateProxyNames(proxies);
 
     const chainConfigs = normalizeYamlChainConfigs(config);
@@ -136,66 +140,33 @@ export function renderClashYamlProfileTemplate(templateText, nodeList, options =
     }
 
     if (options.strictPolicies) {
-        const policyModel = {
-            proxies: config.proxies,
-            groups: (config['proxy-groups'] || []).map((group) => {
-                const { name, type, proxies: members = [], ...groupOptions } = group;
-                let resolvedMembers = [...members];
-                if (group['include-all'] || group['include-all-proxies']) {
-                    const filter = group.filter ? new RegExp(group.filter, 'i') : null;
-                    const exclude = group['exclude-filter']
-                        ? new RegExp(group['exclude-filter'], 'i')
-                        : null;
-                    resolvedMembers.push(
-                        ...config.proxies
-                            .filter(
-                                (proxy) =>
-                                    (!filter || filter.test(proxy.name)) &&
-                                    (!exclude || !exclude.test(proxy.name))
-                            )
-                            .map((proxy) => proxy.name)
-                    );
-                    delete groupOptions['include-all'];
-                    delete groupOptions['include-all-proxies'];
-                    delete groupOptions.filter;
-                    delete groupOptions['exclude-filter'];
-                }
-                return { name, type, members: resolvedMembers, options: groupOptions };
-            }),
-            rules: (config.rules || []).map(parseRoutingRule),
-        };
-        guardPolicyGraph(policyModel, { providers: config['proxy-providers'] || {} });
-        config['proxy-groups'] = policyModel.groups.map(
-            ({ name, type, members, options: groupOptions }) => ({
-                name,
-                type,
-                ...groupOptions,
-                proxies: members,
-            })
-        );
+        guardClashPolicyConfig(config, (config.rules || []).map(parseRoutingRule));
     }
 
-    return yaml.dump(
-        {
-            ...config,
-            'allow-lan': false,
-            'bind-address': '127.0.0.1',
-            ipv6: false,
-            'external-controller': '127.0.0.1:9090',
-            dns: resolveSafeDnsConfig(config.dns, {
-                mode: options.dnsMode,
-                proxyGroup: '🌐 DNS 出口',
-            }),
-            proxies: config.proxies,
-        },
-        {
-            indent: 2,
-            lineWidth: -1,
-            noRefs: true,
-            quotingType: '"',
-            forceQuotes: false,
-        }
-    );
+    const outputConfig = {
+        ...config,
+        'allow-lan': false,
+        'bind-address': '127.0.0.1',
+        ipv6: false,
+        'external-controller': '127.0.0.1:9090',
+        dns: resolveSafeDnsConfig(config.dns, {
+            mode: options.dnsMode,
+            proxyGroup: '🌐 DNS 出口',
+        }),
+        proxies: config.proxies,
+    };
+    if (options.clientProfile === 'windows-mihomo') outputConfig['find-process-mode'] = 'always';
+    if (options.clientProfile === 'shadowrocket') {
+        const excluded = adaptShadowrocketYaml(outputConfig);
+        options.onDiagnostics?.({ runtime: excluded });
+    }
+    return yaml.dump(outputConfig, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        quotingType: '"',
+        forceQuotes: false,
+    });
 }
 
 export class ProcessorService {
@@ -289,6 +260,7 @@ export class ProcessorService {
         const remoteTemplateUrl =
             shouldApplyTemplate && templateSource.kind === 'remote' ? templateSource.value : '';
         if (
+            shouldApplyTemplate &&
             ['builtin', 'custom'].includes(templateSource.kind) &&
             !builtinTemplateEntry &&
             !customTemplateEntry
@@ -320,6 +292,14 @@ export class ProcessorService {
                     enableUdp: builtinOptions.enableUdp,
                     isMeta: builtinOptions.isMeta,
                     strictPolicies: builtinOptions.strictPolicies,
+                    clientProfile: builtinOptions.clientProfile,
+                    onDiagnostics: (diagnostics) => {
+                        headers['X-MiSub-Config-Diagnostics'] = JSON.stringify({
+                            policyWarnings: diagnostics.policies?.length || 0,
+                            excludedWindowsRules: diagnostics.rules?.length || 0,
+                            excludedRuntimeFields: diagnostics.runtime || [],
+                        });
+                    },
                     customDnsOverride: builtinOptions.customDnsOverride || '',
                     dnsMode: builtinOptions.dnsMode || 'clean',
                 };
@@ -367,6 +347,31 @@ export class ProcessorService {
         }
 
         // Set proper content type for built-in formats if not set by template
+        if (targetFormat === 'clash' && builtinOptions.strictPolicies) {
+            const checked = yaml.load(finalContent);
+            if (!Array.isArray(checked?.rules) || !Array.isArray(checked?.['proxy-groups'])) {
+                throw new Error('Full configuration is missing policies or rules');
+            }
+            const policyDiagnostics = guardClashPolicyConfig(
+                checked,
+                checked.rules.map(parseRoutingRule)
+            );
+            const diagnostics = JSON.parse(headers['X-MiSub-Config-Diagnostics'] || '{}');
+            diagnostics.policyWarnings =
+                (diagnostics.policyWarnings || 0) + policyDiagnostics.length;
+            if (builtinOptions.clientProfile === 'windows-mihomo')
+                checked['find-process-mode'] = 'always';
+            if (builtinOptions.clientProfile === 'shadowrocket') {
+                diagnostics.excludedRuntimeFields = [
+                    ...new Set([
+                        ...(diagnostics.excludedRuntimeFields || []),
+                        ...adaptShadowrocketYaml(checked),
+                    ]),
+                ];
+            }
+            headers['X-MiSub-Config-Diagnostics'] = JSON.stringify(diagnostics);
+            finalContent = yaml.dump(checked, { lineWidth: -1, noRefs: true });
+        }
         if (contentType === 'text/plain; charset=utf-8') {
             if (targetFormat === 'clash' || targetFormat === 'egern')
                 contentType = 'application/x-yaml; charset=utf-8';

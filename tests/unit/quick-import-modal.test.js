@@ -11,6 +11,33 @@ const globalOptions = () => ({
 });
 
 describe('QuickImportModal', () => {
+    it('separates Shadowrocket full configuration from the legacy node import', async () => {
+        delete window.location;
+        window.location = { href: 'https://misub.example/public', origin: 'https://misub.example' };
+        const writeText = vi.fn().mockResolvedValue();
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+        const wrapper = mount(QuickImportModal, {
+            props: {
+                show: true,
+                profile: { id: 'p1', name: 'Test' },
+                clients: [{ id: 'shadowrocket', name: 'Shadowrocket', platforms: ['ios'] }],
+            },
+            global: globalOptions(),
+        });
+        expect(wrapper.find('input[readonly]').element.value).toBe(
+            'https://misub.example/profiles/p1?target=clash&client=shadowrocket'
+        );
+        const copyButton = wrapper
+            .findAll('button')
+            .find((button) => button.text() === 'Copy full configuration link');
+        await copyButton.trigger('click');
+        expect(writeText).toHaveBeenCalledWith(
+            'https://misub.example/profiles/p1?target=clash&client=shadowrocket'
+        );
+        await wrapper.find('button.group').trigger('click');
+        expect(window.location.href).toContain('shadowrocket://add/sub://');
+        expect(wrapper.text()).toContain('Nodes only');
+    });
     beforeEach(() => {
         window.history.replaceState({}, '', '/public');
     });

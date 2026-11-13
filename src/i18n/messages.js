@@ -1478,6 +1478,11 @@ export const messages = {
                 name: 'MiSub 内置 极简默认分流',
                 description: 'MiSub 自带的默认极简模板，适合日常通用、新手用户和优先稳定的场景。',
             },
+            unifiedProxy: {
+                name: '统一代理管理（Windows / Shadowrocket）',
+                description:
+                    '共享地区、独立 AI 美国策略和国内直连规则；Shadowrocket 完整 YAML 需真机验收。',
+            },
             acl4ssrLite: {
                 name: 'MiSub 内置 ACL4SSR 精简分流',
                 description:
@@ -1767,6 +1772,12 @@ export const messages = {
         },
         quickImport: {
             title: '选择客户端导入',
+            shadowrocketConfigTitle: 'Shadowrocket 完整远程配置',
+            shadowrocketConfigHint:
+                '先选择统一代理模板和内置引擎。复制下面的链接，在 Shadowrocket「配置 → +」中下载并启用；后续更新配置即可同步。请在测试配置中确认节点、策略组、规则及 DNS 全部生效。',
+            copyFullConfig: '复制完整配置链接',
+            fullConfigCopied: '已复制',
+            nodeSubscriptionOnly: '仅导入节点',
             subtitle: '点击客户端图标自动打开应用并导入订阅',
             detectedPrefix: '检测到您的设备为 ',
             detectedSuffix: '，已为您优先推荐适配客户端',
@@ -3399,6 +3410,11 @@ export const messages = {
                 description:
                     'MiSub built-in minimal default template, suited to everyday use, beginners and stability-first scenarios.',
             },
+            unifiedProxy: {
+                name: 'Unified Proxy Management (Windows / Shadowrocket)',
+                description:
+                    'Shared regional policies, separate US AI policies and China direct routing. Full Shadowrocket YAML requires device verification.',
+            },
             acl4ssrLite: {
                 name: 'MiSub Builtin — ACL4SSR Lite Routing',
                 description:
@@ -3706,6 +3722,12 @@ export const messages = {
         },
         quickImport: {
             title: 'Choose client import',
+            shadowrocketConfigTitle: 'Shadowrocket full remote configuration',
+            shadowrocketConfigHint:
+                'Select the unified proxy template and built-in engine first. Download this link in Shadowrocket Config → + and enable it. Update the configuration to sync. Verify nodes, policies, rules and DNS in a test configuration.',
+            copyFullConfig: 'Copy full configuration link',
+            fullConfigCopied: 'Copied',
+            nodeSubscriptionOnly: 'Nodes only',
             subtitle: 'Click a client icon to open the app and import the subscription',
             detectedPrefix: 'Detected your device as ',
             detectedSuffix: '; matching clients are prioritized',

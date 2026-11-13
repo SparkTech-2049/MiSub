@@ -1,4 +1,15 @@
+import { UNIFIED_POLICY_TEMPLATE } from './unified-policy-template.js';
+
 export const BUILTIN_TEMPLATE_REGISTRY = {
+    unified_proxy_management: {
+        id: 'unified_proxy_management',
+        name: '统一代理管理（Windows / Shadowrocket）',
+        target: 'clash',
+        format: 'ini',
+        description:
+            '共享独立 AI 美国策略、地区选择和国内直连规则；Windows 组合分流仅在 client=windows-mihomo 时输出。Shadowrocket 完整 YAML 需真机验收。',
+        content: UNIFIED_POLICY_TEMPLATE,
+    },
     clash_misub_minimal: {
         id: 'clash_misub_minimal',
         name: 'MiSub 极简默认分流',

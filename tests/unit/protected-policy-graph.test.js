@@ -16,6 +16,14 @@ const render = (groups, rules, proxies = nodes) =>
     );
 
 describe('protected policy graph', () => {
+    it('rejects sensitive domain rules that bypass a named AI policy', () => {
+        expect(() =>
+            render('PROXY = select, SG-01, DIRECT', 'DOMAIN-SUFFIX,claude.ai,PROXY\nMATCH,PROXY')
+        ).toThrow(/DIRECT/);
+        expect(() =>
+            render('PROXY = select, SG-01', 'DOMAIN-SUFFIX,openai.com,DIRECT\nMATCH,PROXY')
+        ).toThrow(/DIRECT/);
+    });
     it('keeps sensitive rules and rejects empty upstream membership', () => {
         const config = render(
             'Claude-US = select, deleted-US\nPROXY = select, SG-01',

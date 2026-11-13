@@ -257,6 +257,7 @@ export function generateBuiltinClashConfig(nodeList, options = {}) {
         // 最终清理，确保输出没有控制字符
         return cleanControlChars(yamlStr);
     } catch (e) {
+        if (options.strictPolicies) throw e;
         console.error('[BuiltinClash] Generation failed:', e);
         // Fallback: 至少返回包含节点的有效 YAML 结构，而不是传回会导致 Clash 报错的 Base64
         const fallbackProxies = Array.isArray(proxies) ? stripInternalProxyFields(proxies) : [];

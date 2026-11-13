@@ -1,12 +1,19 @@
+import { AI_SERVICE_RULES } from './builtin-rules-provider.js';
+
 const ACTIONS = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE']);
 const UNSAFE = new Set(['DIRECT', 'PASS', 'COMPATIBLE']);
 const AUTO_TYPES = new Set(['url-test', 'fallback', 'load-balance']);
 
 export function isProtectedPolicy(name = '') {
-    return /人工智能|(?:^|[^a-z])(ai|claude|openai|gemini|grok|mistral|deepseek|perplexity|copilot)(?=$|[^a-z])/i.test(
+    return /(?:-|_|\s)US$|人工智能|(?:^|[^a-z])(ai|claude|openai|gemini|grok|mistral|deepseek|perplexity|copilot)(?=$|[^a-z])/i.test(
         name
     );
 }
+const sensitiveDomains = new Set(
+    AI_SERVICE_RULES.filter((service) =>
+        ['claude', 'openai', 'gemini'].includes(service.id)
+    ).flatMap((service) => service.domains)
+);
 
 function isUsProxy(proxy) {
     return /美国|🇺🇸|united\s*states|america|(?:^|[^a-z])us(?:[^a-z]|$)/i.test(
@@ -77,8 +84,18 @@ export function guardPolicyGraph(model, { providers = {} } = {}) {
     }
     for (const name of groups.keys()) visit(name);
     for (const name of proxies.keys()) visit(name);
-    for (const group of model.groups.filter((item) => isProtectedPolicy(item.name))) {
-        const usOnly = /(?:-|_|\s)US$/i.test(group.name);
+    const protectedRoots = new Set(
+        model.groups.filter((item) => isProtectedPolicy(item.name)).map((item) => item.name)
+    );
+    model.rules
+        .filter(
+            (rule) =>
+                ['domain', 'domain-suffix'].includes(rule.type.toLowerCase()) &&
+                sensitiveDomains.has(rule.value?.toLowerCase())
+        )
+        .forEach((rule) => protectedRoots.add(rule.policy));
+    for (const root of protectedRoots) {
+        const usOnly = /(?:-|_|\s)US$/i.test(root);
         const checked = new Set();
         function check(name) {
             if (checked.has(name)) return;
@@ -96,12 +113,54 @@ export function guardPolicyGraph(model, { providers = {} } = {}) {
             const dialer = proxies.get(name)?.['dialer-proxy'];
             if (dialer) check(dialer);
         }
-        group.members.forEach(check);
+        check(root);
     }
     for (const rule of model.rules) {
         if (!groups.has(rule.policy) && !proxies.has(rule.policy) && !ACTIONS.has(rule.policy)) {
             throw new Error('Invalid policy graph: rule references an unknown policy');
         }
     }
+    return diagnostics;
+}
+
+export function guardClashPolicyConfig(config, rules) {
+    const model = {
+        proxies: config.proxies || [],
+        groups: (config['proxy-groups'] || []).map((group) => {
+            const { name, type, proxies: members = [], ...options } = group;
+            const resolved = [...members];
+            if (group['include-all'] || group['include-all-proxies']) {
+                const filter = group.filter ? new RegExp(group.filter, 'i') : null;
+                const exclude = group['exclude-filter']
+                    ? new RegExp(group['exclude-filter'], 'i')
+                    : null;
+                resolved.push(
+                    ...(config.proxies || [])
+                        .filter(
+                            (proxy) =>
+                                (!filter || filter.test(proxy.name)) &&
+                                (!exclude || !exclude.test(proxy.name))
+                        )
+                        .map((proxy) => proxy.name)
+                );
+                for (const key of [
+                    'include-all',
+                    'include-all-proxies',
+                    'filter',
+                    'exclude-filter',
+                ])
+                    delete options[key];
+            }
+            return { name, type, members: resolved, options };
+        }),
+        rules,
+    };
+    const diagnostics = guardPolicyGraph(model, { providers: config['proxy-providers'] || {} });
+    config['proxy-groups'] = model.groups.map(({ name, type, members, options }) => ({
+        name,
+        type,
+        ...options,
+        proxies: members,
+    }));
     return diagnostics;
 }

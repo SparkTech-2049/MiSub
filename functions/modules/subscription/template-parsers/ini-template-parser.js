@@ -186,10 +186,19 @@ export function parseIniTemplate(templateText, options = {}) {
         .map(parseGroupLine)
         .filter(Boolean)
         .concat(parsedAclGroups);
-    const rules = (sections.get('rule') || [])
-        .map(parseRuleLine)
-        .filter(Boolean)
-        .concat(parsedAclRules);
+    const scopedRules = [];
+    for (const [section, lines] of sections) {
+        if (!section.startsWith('rule:') && section !== 'rule') continue;
+        if (section !== 'rule' && section !== 'rule:windows')
+            throw new Error('Unknown rule platform section');
+        scopedRules.push(
+            ...lines.map((line) => ({
+                ...parseRuleLine(line),
+                ...(section === 'rule:windows' ? { platform: 'windows' } : {}),
+            }))
+        );
+    }
+    const rules = scopedRules.concat(parsedAclRules);
 
     return createUnifiedTemplateModel({
         meta: {
@@ -198,8 +207,13 @@ export function parseIniTemplate(templateText, options = {}) {
             target: options.targetFormat || 'clash',
             // [逻辑说明] ruleLevel 在 INI 模式下暂不直接影响生成，因为 INI 自带了 hardcoded rules。
             // 仅作为元数据打包进 TemplateModel，供未来动态模板扩展使用。
-            ruleLevel: options.ruleLevel || 'std',
+            ruleLevel: (sections.get('misub') || []).some((line) =>
+                /^rule-level\s*=\s*none$/i.test(line.trim())
+            )
+                ? 'none'
+                : options.ruleLevel || 'std',
             isMeta: Boolean(options.isMeta),
+            clientProfile: options.clientProfile || '',
             strictPolicies:
                 Boolean(options.strictPolicies) ||
                 (sections.get('misub') || []).some((line) =>

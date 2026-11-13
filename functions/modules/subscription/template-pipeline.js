@@ -33,6 +33,13 @@ export function renderClashFromIniTemplate(templateText, options = {}) {
     const proxies = Array.isArray(options.proxies)
         ? options.proxies
         : urlsToClashProxies(proxyUrls, options);
+    if (
+        options.strictPolicies &&
+        !Array.isArray(options.proxies) &&
+        proxies.length !== proxyUrls.length
+    ) {
+        throw new Error('A node could not be converted to the requested full configuration');
+    }
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
@@ -43,7 +50,7 @@ export function renderClashFromIniTemplate(templateText, options = {}) {
     // 智能注入地区分组逻辑
     model = applySmartModelOptimizations(model);
 
-    return renderClashFromTemplateModel(model);
+    return renderClashFromTemplateModel(model, options);
 }
 
 export function renderSingboxFromIniTemplate(templateText, options = {}) {
