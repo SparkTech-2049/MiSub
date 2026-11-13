@@ -106,3 +106,4 @@ data/
 
 # AI assistant workspace data
 .workbuddy-ai/
+.private-rollout/
