@@ -48,7 +48,7 @@ Shadowrocket 的“首页添加订阅”和“配置下载”是不同操作。�
 
 规则优先级：浏览器与搜索域名的 AND → Claude/OpenAI/Gemini 独立规则 → Google 通用规则 → 中国大陆域名集 → GEOIP CN → MATCH PROXY。使用精确 `DOMAIN,www.google.com` 组合，避免把 `gemini.google.com` 提前分流到浏览器搜索策略。
 
-Claude-US、OpenAI-US、Gemini-US、Google-US 分别引用美国组。地区组和默认代理组均采用 `select`，不存在 DIRECT 成员；大陆直连由路由规则控制。地区标签来自名称/元数据，实际出口国家需单独验证。
+Claude-US、OpenAI-US、Gemini-US、Google-US 分别持有独立的美国节点候选，可在各服务组中分别选择实际节点，选择其中一个不会改变另一个服务的出口。地区组和默认代理组均采用 `select`，不存在 DIRECT 成员；大陆直连由路由规则控制。地区标签来自名称/元数据，实际出口国家需单独验证。
 
 固定出口时，在共享模板中将业务组改为只包含已核实的稳定节点名，例如：
 

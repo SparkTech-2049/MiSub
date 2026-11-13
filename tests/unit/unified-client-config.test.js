@@ -8,7 +8,7 @@ import {
 } from '../../functions/modules/subscription/template-pipeline.js';
 import { adaptShadowrocketYaml } from '../../functions/modules/subscription/client-profile.js';
 
-const pool = ['US-01', 'SG-01', 'HK-01', 'JP-01']
+const pool = ['US-01', 'US-02', 'SG-01', 'HK-01', 'JP-01']
     .map((name) => `trojan://test@example.com:443#${name}`)
     .join('\n');
 const options = { nodeList: pool, ruleLevel: 'none', strictPolicies: true };
@@ -40,7 +40,9 @@ describe('shared Windows and Shadowrocket configurations', () => {
         expect(windows['find-process-mode']).toBe('always');
         for (const name of ['Claude-US', 'OpenAI-US', 'Google-US', 'Gemini-US']) {
             expect(ios['proxy-groups'].find((group) => group.name === name).proxies).toEqual([
-                '🇺🇸 美国节点',
+                ...ios.proxies
+                    .filter((proxy) => proxy.name.includes('US-'))
+                    .map((proxy) => proxy.name),
             ]);
         }
     });
