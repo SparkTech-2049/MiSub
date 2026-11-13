@@ -7,6 +7,7 @@ export function createUnifiedTemplateModel(input = {}) {
             ruleLevel: input.meta?.ruleLevel || 'std',
             // 客户端内核能力标记：仅 Mihomo/Meta 支持节点级 dialer-proxy（链式代理）。
             isMeta: Boolean(input.meta?.isMeta),
+            strictPolicies: Boolean(input.meta?.strictPolicies),
         },
         proxies: Array.isArray(input.proxies) ? input.proxies : [],
         groups: Array.isArray(input.groups) ? input.groups : [],

@@ -200,6 +200,11 @@ export function parseIniTemplate(templateText, options = {}) {
             // 仅作为元数据打包进 TemplateModel，供未来动态模板扩展使用。
             ruleLevel: options.ruleLevel || 'std',
             isMeta: Boolean(options.isMeta),
+            strictPolicies:
+                Boolean(options.strictPolicies) ||
+                (sections.get('misub') || []).some((line) =>
+                    /^strict-policies\s*=\s*true$/i.test(line.trim())
+                ),
         },
         proxies: options.proxies || [],
         groups,

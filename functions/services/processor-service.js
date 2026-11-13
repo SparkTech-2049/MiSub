@@ -21,6 +21,8 @@ import yaml from 'js-yaml';
 import { urlsToClashProxies } from '../utils/url-to-clash.js';
 import { resolveSafeDnsConfig } from '../modules/subscription/safe-dns.js';
 import { applyMihomoChainProxyToClashConfig } from '../modules/subscription/mihomo-chain-proxy.js';
+import { guardPolicyGraph } from '../modules/subscription/policy-guard.js';
+import { parseRoutingRule } from '../modules/subscription/rule-syntax.js';
 
 function getTemplateExtension(templateUrl) {
     const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
@@ -133,6 +135,46 @@ export function renderClashYamlProfileTemplate(templateText, nodeList, options =
         });
     }
 
+    if (options.strictPolicies) {
+        const policyModel = {
+            proxies: config.proxies,
+            groups: (config['proxy-groups'] || []).map((group) => {
+                const { name, type, proxies: members = [], ...groupOptions } = group;
+                let resolvedMembers = [...members];
+                if (group['include-all'] || group['include-all-proxies']) {
+                    const filter = group.filter ? new RegExp(group.filter, 'i') : null;
+                    const exclude = group['exclude-filter']
+                        ? new RegExp(group['exclude-filter'], 'i')
+                        : null;
+                    resolvedMembers.push(
+                        ...config.proxies
+                            .filter(
+                                (proxy) =>
+                                    (!filter || filter.test(proxy.name)) &&
+                                    (!exclude || !exclude.test(proxy.name))
+                            )
+                            .map((proxy) => proxy.name)
+                    );
+                    delete groupOptions['include-all'];
+                    delete groupOptions['include-all-proxies'];
+                    delete groupOptions.filter;
+                    delete groupOptions['exclude-filter'];
+                }
+                return { name, type, members: resolvedMembers, options: groupOptions };
+            }),
+            rules: (config.rules || []).map(parseRoutingRule),
+        };
+        guardPolicyGraph(policyModel, { providers: config['proxy-providers'] || {} });
+        config['proxy-groups'] = policyModel.groups.map(
+            ({ name, type, members, options: groupOptions }) => ({
+                name,
+                type,
+                ...groupOptions,
+                proxies: members,
+            })
+        );
+    }
+
     return yaml.dump(
         {
             ...config,
@@ -221,6 +263,8 @@ export class ProcessorService {
         });
 
         if (!builtinProxyContent) {
+            if (builtinOptions.strictPolicies)
+                throw new Error('Full configuration generator is unavailable');
             // Fallback to raw Base64 if generator fails
             return {
                 content: base64EncodeUtf8(combinedNodeList),
@@ -244,6 +288,13 @@ export class ProcessorService {
                 : null;
         const remoteTemplateUrl =
             shouldApplyTemplate && templateSource.kind === 'remote' ? templateSource.value : '';
+        if (
+            ['builtin', 'custom'].includes(templateSource.kind) &&
+            !builtinTemplateEntry &&
+            !customTemplateEntry
+        ) {
+            throw new Error('Requested configuration template is missing or disabled');
+        }
 
         if (builtinTemplateEntry || customTemplateEntry || remoteTemplateUrl) {
             const templateText =
@@ -254,6 +305,8 @@ export class ProcessorService {
                 templateSource,
                 builtinTemplateEntry || customTemplateEntry
             );
+
+            if (!templateText?.trim()) throw new Error('Requested configuration template is empty');
 
             if (templateText && isIniTemplate) {
                 const renderParams = {
@@ -266,6 +319,7 @@ export class ProcessorService {
                     skipCertVerify: builtinOptions.skipCertVerify,
                     enableUdp: builtinOptions.enableUdp,
                     isMeta: builtinOptions.isMeta,
+                    strictPolicies: builtinOptions.strictPolicies,
                     customDnsOverride: builtinOptions.customDnsOverride || '',
                     dnsMode: builtinOptions.dnsMode || 'clean',
                 };
@@ -307,6 +361,8 @@ export class ProcessorService {
                 );
                 contentType = 'application/x-yaml; charset=utf-8';
                 headers['X-MiSub-Template-Mode'] = 'clash-yaml-profile';
+            } else {
+                throw new Error('Configuration template is incompatible with the requested target');
             }
         }
 

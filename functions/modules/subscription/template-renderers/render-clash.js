@@ -4,6 +4,7 @@ import { normalizeUnifiedTemplateModel } from '../template-model.js';
 import { DNS_PROXY_GROUP, resolveSafeDnsConfig } from '../safe-dns.js';
 import { applyMihomoChainProxy } from '../mihomo-chain-proxy.js';
 import { formatRoutingRule } from '../rule-syntax.js';
+import { guardPolicyGraph } from '../policy-guard.js';
 
 function mapGroupType(type) {
     const normalized = String(type || '')
@@ -183,6 +184,9 @@ export function renderClashFromTemplateModel(model) {
         applyMihomoChainProxy(normalizedModel, {
             enableDialerProxy: Boolean(normalizedModel.meta?.isMeta),
         });
+    }
+    if (normalizedModel.meta.strictPolicies) {
+        normalizedModel.extras.policyDiagnostics = guardPolicyGraph(normalizedModel);
     }
 
     const ruleProviders = {};

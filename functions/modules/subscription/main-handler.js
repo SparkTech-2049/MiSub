@@ -1466,6 +1466,19 @@ export async function handleMisubRequest(context) {
             return new Response(finalContent || '', { headers: responseHeaders });
         } catch (e) {
             console.error(`[Builtin${targetFormat}] Generation failed:`, e);
+            return new Response(
+                JSON.stringify({
+                    error: 'Configuration generation failed. Check the rule template, policy references and client compatibility; the previous client configuration should be retained.',
+                }),
+                {
+                    status: 422,
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Cache-Control': 'no-store',
+                        'X-MiSub-Error': 'configuration-invalid',
+                    },
+                }
+            );
         }
     }
 
