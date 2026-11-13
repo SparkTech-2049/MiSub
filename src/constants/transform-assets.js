@@ -16,6 +16,18 @@
 export const TRANSFORM_ASSETS = {
     configs: [
         {
+            id: 100,
+            nameKey: 'transformAssets.unifiedProxy.name',
+            descriptionKey: 'transformAssets.unifiedProxy.description',
+            url: 'builtin:unified_proxy_management',
+            group: 'MiSub Builtin',
+            is_default: false,
+            sourceType: 'builtin-preset',
+            recommendedFor: ['clash'],
+            compatibleClients: ['clash', 'mihomo', 'clash-meta', 'shadowrocket'],
+            strategy: 'model-driven',
+        },
+        {
             id: 0,
             nameKey: 'transformAssets.builtinMinimal.name',
             url: 'builtin:clash_misub_minimal',

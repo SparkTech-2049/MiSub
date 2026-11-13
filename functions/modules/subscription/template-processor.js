@@ -1,6 +1,8 @@
 import { groupNodeLinesByRegion } from './region-groups.js';
 import { AI_SERVICE_RULES } from './builtin-rules-provider.js';
 import { DNS_PROXY_GROUP } from './safe-dns.js';
+import { isProtectedPolicy } from './policy-guard.js';
+import { projectClientRules } from './client-profile.js';
 
 /**
  * 解析并扩展策略组中的正则过滤器
@@ -30,6 +32,7 @@ function resolveGroupFilters(model) {
                     }
                 });
             } catch (e) {
+                if (model.meta?.strictPolicies) throw new Error('Invalid node filter expression');
                 console.warn(`[Template Processor] Invalid regex filter: ${filter}`, e);
             }
         });
@@ -43,6 +46,14 @@ function resolveGroupFilters(model) {
  * @param {Object} model - 统一模板模型
  */
 function pruneEmptyGroups(model) {
+    model.groups.forEach((group) => {
+        if (isProtectedPolicy(group.name) && !group.members?.length) {
+            group.members = ['REJECT'];
+            group.type = 'select';
+            group.filters = [];
+            group.options = {};
+        }
+    });
     let changed = true;
     while (changed) {
         changed = false;
@@ -334,6 +345,7 @@ function ensureAiPolicy(model) {
  * @param {Object} model - 统一模板模型
  */
 export function applySmartModelOptimizations(model) {
+    projectClientRules(model);
     const { ruleLevel } = model.meta || {};
     const normalizedLevel = (ruleLevel || '').toLowerCase();
     const isCustomOrNone = !normalizedLevel || normalizedLevel === 'none';
@@ -409,8 +421,10 @@ export function applySmartModelOptimizations(model) {
 
     // 7. 最后进行全局修剪与去重 (始终执行，保证输出质量)
     dedupeGroupsByName(model);
-    pruneInvalidMembers(model);
-    pruneEmptyGroups(model);
+    if (!model.meta.strictPolicies) {
+        pruneInvalidMembers(model);
+        pruneEmptyGroups(model);
+    }
 
     return model;
 }

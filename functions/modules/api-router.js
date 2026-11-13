@@ -900,8 +900,7 @@ async function handleCronTriggerRequest(env) {
         const scheduleModule = await import('../_schedule.js');
         const result = await scheduleModule.performSubscriptionSync(env, {
             maxSyncCount,
-            syncTimeout,
-            enableParallel,
+            concurrency: enableParallel ? 5 : 1,
         });
 
         // 保存执行状态

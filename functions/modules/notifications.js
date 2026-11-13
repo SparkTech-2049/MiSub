@@ -5,6 +5,7 @@
  */
 
 import { formatBytes } from './utils.js';
+import { refreshSubscription } from '../services/subscription-refresh-service.js';
 import { KV_KEY_SUBS, KV_KEY_SETTINGS, DEFAULT_SETTINGS, SYSTEM_CONSTANTS } from './config.js';
 // 导入核心通知服务及工具
 import {
@@ -139,6 +140,23 @@ export async function handleCronTrigger(env) {
 
     async function processSubscription(sub) {
         try {
+            if (sub.enableNodeCache === true) {
+                const refreshed = await refreshSubscription(storageAdapter, settings, sub, env);
+                if (refreshed.runtimeInfo) Object.assign(sub, refreshed.runtimeInfo);
+                if (refreshed.upstreamSuccess) {
+                    sub.lastUpdate = new Date().toISOString();
+                    sub.lastError = null;
+                }
+                await checkAndNotify(sub, settings, env);
+                return {
+                    name: sub.name,
+                    success: refreshed.upstreamSuccess,
+                    traffic: Boolean(refreshed.runtimeInfo?.userInfo),
+                    nodes: refreshed.nodeCount > 0,
+                    fromCache: refreshed.fromCache,
+                    error: refreshed.error,
+                };
+            }
             const fetchWithTimeout = (url, options) => {
                 const { cf, ...requestInit } = options;
                 const fetchCall = cf
@@ -278,6 +296,7 @@ export async function handleCronTrigger(env) {
             changes: changesMade,
             duration: `${duration}ms`,
             failed_subscriptions: failedSubscriptions,
+            cachedFallbacks: results.filter((result) => result.fromCache).length,
         },
     };
 

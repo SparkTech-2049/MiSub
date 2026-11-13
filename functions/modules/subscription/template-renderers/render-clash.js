@@ -3,6 +3,9 @@ import { clashFix } from '../../../utils/format-utils.js';
 import { normalizeUnifiedTemplateModel } from '../template-model.js';
 import { DNS_PROXY_GROUP, resolveSafeDnsConfig } from '../safe-dns.js';
 import { applyMihomoChainProxy } from '../mihomo-chain-proxy.js';
+import { formatRoutingRule } from '../rule-syntax.js';
+import { guardPolicyGraph } from '../policy-guard.js';
+import { adaptShadowrocketYaml } from '../client-profile.js';
 
 function mapGroupType(type) {
     const normalized = String(type || '')
@@ -167,16 +170,14 @@ function getRuleProviderBehavior(providerUrl) {
 function mapRule(rule, ruleProviderMap) {
     const type = String(rule.type || '').toUpperCase();
     if (!type) return null;
-    if (type === 'MATCH' || type === 'FINAL') return `MATCH,${rule.policy}`;
-    if (type === 'GEOIP') return `GEOIP,${rule.value || 'CN'},${rule.policy}`;
     if (type === 'RULE-SET') {
         const providerName = ruleProviderMap.get(rule.value);
-        return `RULE-SET,${providerName || rule.value},${rule.policy}`;
+        return formatRoutingRule(rule, providerName || rule.value);
     }
-    return `${type},${rule.value},${rule.policy}`;
+    return formatRoutingRule(rule);
 }
 
-export function renderClashFromTemplateModel(model) {
+export function renderClashFromTemplateModel(model, options = {}) {
     const normalizedModel = normalizeUnifiedTemplateModel(model);
 
     // 所有客户端都保留链式策略组；仅 Mihomo/Meta 展开节点级 dialer-proxy。
@@ -184,6 +185,9 @@ export function renderClashFromTemplateModel(model) {
         applyMihomoChainProxy(normalizedModel, {
             enableDialerProxy: Boolean(normalizedModel.meta?.isMeta),
         });
+    }
+    if (normalizedModel.meta.strictPolicies) {
+        normalizedModel.extras.policyDiagnostics = guardPolicyGraph(normalizedModel);
     }
 
     const ruleProviders = {};
@@ -275,6 +279,17 @@ export function renderClashFromTemplateModel(model) {
             'subscription-url': normalizedModel.settings.managedConfigUrl || '',
         },
     };
+
+    if (normalizedModel.meta.clientProfile === 'windows-mihomo')
+        config['find-process-mode'] = 'always';
+    if (normalizedModel.meta.clientProfile === 'shadowrocket') {
+        normalizedModel.extras.runtimeExclusions = adaptShadowrocketYaml(config);
+    }
+    options.onDiagnostics?.({
+        policies: normalizedModel.extras.policyDiagnostics || [],
+        rules: normalizedModel.extras.projectionDiagnostics || [],
+        runtime: normalizedModel.extras.runtimeExclusions || [],
+    });
 
     let yamlStr = yaml.dump(config, {
         indent: 2,

@@ -1,5 +1,6 @@
 import { createUnifiedTemplateModel } from '../template-model.js';
 import { pinRemoteRuleUrl } from '../builtin-rules-provider.js';
+import { parseRoutingRule, splitRuleFields } from '../rule-syntax.js';
 
 function parseIniSections(templateText) {
     const lines = String(templateText || '').split(/\r?\n/);
@@ -54,23 +55,12 @@ function parseGroupLine(line) {
 }
 
 function parseRuleLine(line) {
-    const parts = line
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean);
-    if (parts.length < 2) return null;
-
-    return {
-        type: parts[0].toLowerCase(),
-        value: parts.length > 2 ? parts[1] : '',
-        policy: parts.length > 2 ? parts[2] : parts[1],
-        extras: parts.length > 3 ? parts.slice(3) : [],
-    };
+    return parseRoutingRule(line);
 }
 
 function parseAclRuleSetLine(line) {
     const raw = line.replace(/^ruleset=/i, '');
-    const parts = raw.split(',').map((part) => part.trim());
+    const parts = splitRuleFields(raw);
     if (parts.length < 2) return null;
 
     const policy = parts[0];
@@ -81,17 +71,16 @@ function parseAclRuleSetLine(line) {
 
     if (source.startsWith('[]')) {
         const inlineValue = source.slice(2);
-        const inlineParts = inlineValue
-            .split(',')
-            .map((part) => part.trim())
-            .filter(Boolean);
-        const type = (inlineParts[0] || '').toLowerCase();
+        const inlineParts = splitRuleFields(inlineValue);
+        const terminal = /^(MATCH|FINAL)$/i.test(inlineParts[0]);
+        const rule = parseRoutingRule(
+            terminal
+                ? [inlineParts[0], policy, ...inlineParts.slice(1)].join(',')
+                : [inlineParts[0], inlineParts[1], policy, ...inlineParts.slice(2)].join(',')
+        );
         return {
-            type,
-            value: inlineParts[1] || '',
-            policy,
+            ...rule,
             source: 'inline',
-            extras: inlineParts.slice(2),
         };
     }
 
@@ -197,10 +186,19 @@ export function parseIniTemplate(templateText, options = {}) {
         .map(parseGroupLine)
         .filter(Boolean)
         .concat(parsedAclGroups);
-    const rules = (sections.get('rule') || [])
-        .map(parseRuleLine)
-        .filter(Boolean)
-        .concat(parsedAclRules);
+    const scopedRules = [];
+    for (const [section, lines] of sections) {
+        if (!section.startsWith('rule:') && section !== 'rule') continue;
+        if (section !== 'rule' && section !== 'rule:windows')
+            throw new Error('Unknown rule platform section');
+        scopedRules.push(
+            ...lines.map((line) => ({
+                ...parseRuleLine(line),
+                ...(section === 'rule:windows' ? { platform: 'windows' } : {}),
+            }))
+        );
+    }
+    const rules = scopedRules.concat(parsedAclRules);
 
     return createUnifiedTemplateModel({
         meta: {
@@ -209,8 +207,18 @@ export function parseIniTemplate(templateText, options = {}) {
             target: options.targetFormat || 'clash',
             // [逻辑说明] ruleLevel 在 INI 模式下暂不直接影响生成，因为 INI 自带了 hardcoded rules。
             // 仅作为元数据打包进 TemplateModel，供未来动态模板扩展使用。
-            ruleLevel: options.ruleLevel || 'std',
+            ruleLevel: (sections.get('misub') || []).some((line) =>
+                /^rule-level\s*=\s*none$/i.test(line.trim())
+            )
+                ? 'none'
+                : options.ruleLevel || 'std',
             isMeta: Boolean(options.isMeta),
+            clientProfile: options.clientProfile || '',
+            strictPolicies:
+                Boolean(options.strictPolicies) ||
+                (sections.get('misub') || []).some((line) =>
+                    /^strict-policies\s*=\s*true$/i.test(line.trim())
+                ),
         },
         proxies: options.proxies || [],
         groups,

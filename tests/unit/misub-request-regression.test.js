@@ -39,6 +39,51 @@ function silenceExpectedRequestLogs() {
 }
 
 describe('handleMisubRequest regression coverage', () => {
+    it('serves full shared client profiles and refuses invalid full output without Base64 fallback', async () => {
+        const adapter = createStorageAdapter({
+            settings: {
+                mytoken: 'test-token',
+                enableFlagEmoji: false,
+                enableTrafficNode: false,
+                transformConfigMode: 'preset',
+                transformConfig: 'builtin:unified_proxy_management',
+            },
+            subscriptions: [
+                {
+                    id: 'manual',
+                    name: 'US-VPS',
+                    url: 'trojan://test@node.example:443#US-VPS',
+                    enabled: true,
+                },
+            ],
+        });
+        createAdapter.mockReturnValue(adapter);
+        const { handleMisubRequest } =
+            await import('../../functions/modules/subscription/main-handler.js');
+        const request = (query) =>
+            handleMisubRequest({
+                request: new Request(`https://misub.example/test-token?${query}`, {
+                    headers: { 'User-Agent': 'Shadowrocket' },
+                }),
+                env: {},
+                waitUntil: vi.fn(),
+            });
+        const full = await request('target=clash&client=shadowrocket');
+        expect(full.status).toBe(200);
+        expect(full.headers.get('Content-Type')).toContain('yaml');
+        const text = await full.text();
+        expect(text).toContain('Claude-US');
+        expect(text).toContain('DOMAIN-SUFFIX,claude.ai,Claude-US');
+        expect(text).not.toContain('PROCESS-NAME');
+        const legacy = await request('target=base64');
+        expect(legacy.status).toBe(200);
+        expect(await legacy.text()).not.toContain('proxy-groups:');
+        adapter.store.get('worker_settings_v1').transformConfig = 'builtin:missing-template';
+        const invalid = await request('target=clash&client=shadowrocket');
+        expect(invalid.status).toBe(422);
+        expect(invalid.headers.get('X-MiSub-Error')).toBe('configuration-invalid');
+        expect(await invalid.text()).not.toContain('trojan://');
+    });
     beforeEach(() => {
         vi.resetModules();
         vi.clearAllMocks();

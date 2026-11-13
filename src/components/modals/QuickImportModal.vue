@@ -15,6 +15,7 @@
 
     // 设备检测
     const detectedPlatform = ref(null);
+    const fullConfigCopied = ref(false);
 
     const detectPlatform = () => {
         const ua = navigator.userAgent;
@@ -58,6 +59,22 @@
         return `${window.location.origin}/${token}/${identifier}`;
     };
 
+    const shadowrocketConfigUrl = computed(() => {
+        if (!props.profile) return '';
+        const url = new URL(getSubscriptionUrl());
+        url.searchParams.set('target', 'clash');
+        url.searchParams.set('client', 'shadowrocket');
+        return url.toString();
+    });
+    const copyShadowrocketConfig = async () => {
+        try {
+            await navigator.clipboard.writeText(shadowrocketConfigUrl.value);
+            fullConfigCopied.value = true;
+        } catch {
+            fullConfigCopied.value = false;
+        }
+    };
+
     // 生成深度链接
     const withQueryParam = (url, key, value) => {
         try {
@@ -74,7 +91,14 @@
 
     const generateDeepLink = (client) => {
         const subUrl = getSubscriptionUrl();
-        const clashSubUrl = withQueryParam(subUrl, 'target', 'clash');
+        const clashSubUrl =
+            client.id === 'clash-verge-rev'
+                ? withQueryParam(
+                      withQueryParam(subUrl, 'target', 'clash'),
+                      'client',
+                      'windows-mihomo'
+                  )
+                : withQueryParam(subUrl, 'target', 'clash');
         const scheme = urlSchemeMap[client.id];
 
         if (!scheme) return null;
@@ -199,6 +223,30 @@
 
         <template #body>
             <div
+                v-if="profile && clients.some((client) => client.id === 'shadowrocket')"
+                class="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-700 dark:bg-indigo-900/20"
+            >
+                <p class="font-semibold">{{ t('quickImport.shadowrocketConfigTitle') }}</p>
+                <p class="mt-1 text-sm">{{ t('quickImport.shadowrocketConfigHint') }}</p>
+                <input
+                    :value="shadowrocketConfigUrl"
+                    readonly
+                    :aria-label="t('quickImport.shadowrocketConfigTitle')"
+                    class="mt-3 w-full rounded border px-3 py-2 text-xs dark:bg-gray-800"
+                />
+                <button
+                    type="button"
+                    class="mt-2 rounded bg-indigo-600 px-3 py-2 text-sm text-white"
+                    @click="copyShadowrocketConfig"
+                >
+                    {{
+                        fullConfigCopied
+                            ? t('quickImport.fullConfigCopied')
+                            : t('quickImport.copyFullConfig')
+                    }}
+                </button>
+            </div>
+            <div
                 v-if="groupedClients.length === 0"
                 class="py-12 text-center text-gray-500 dark:text-gray-400"
             >
@@ -243,6 +291,11 @@
                             class="text-sm font-semibold text-gray-900 dark:text-white line-clamp-1"
                         >
                             {{ client.name }}
+                            <span
+                                v-if="client.id === 'shadowrocket'"
+                                class="block text-xs text-gray-500"
+                                >{{ t('quickImport.nodeSubscriptionOnly') }}</span
+                            >
                         </div>
                         <div class="mt-1 flex flex-wrap justify-center gap-1">
                             <span

@@ -8,6 +8,7 @@ import { renderQuanxFromTemplateModel } from './template-renderers/render-quanx.
 import { renderEgernFromTemplateModel } from './template-renderers/render-egern.js';
 import { urlsToClashProxies } from '../../utils/url-to-clash.js';
 import { getUniqueName } from './name-utils.js';
+import { assertLogicalRuleSupport } from './rule-syntax.js';
 
 /**
  * 处理重名节点，确保每个节点名称唯一
@@ -32,6 +33,13 @@ export function renderClashFromIniTemplate(templateText, options = {}) {
     const proxies = Array.isArray(options.proxies)
         ? options.proxies
         : urlsToClashProxies(proxyUrls, options);
+    if (
+        options.strictPolicies &&
+        !Array.isArray(options.proxies) &&
+        proxies.length !== proxyUrls.length
+    ) {
+        throw new Error('A node could not be converted to the requested full configuration');
+    }
     deduplicateNames(proxies);
 
     let model = parseIniTemplate(templateText, {
@@ -42,7 +50,7 @@ export function renderClashFromIniTemplate(templateText, options = {}) {
     // 智能注入地区分组逻辑
     model = applySmartModelOptimizations(model);
 
-    return renderClashFromTemplateModel(model);
+    return renderClashFromTemplateModel(model, options);
 }
 
 export function renderSingboxFromIniTemplate(templateText, options = {}) {
@@ -61,6 +69,7 @@ export function renderSingboxFromIniTemplate(templateText, options = {}) {
         proxies,
     });
     model = applySmartModelOptimizations(model);
+    assertLogicalRuleSupport(model, 'singbox');
     return renderSingboxFromTemplateModel(model, options);
 }
 
@@ -80,6 +89,7 @@ export function renderSurgeFromIniTemplate(templateText, options = {}) {
         proxies,
     });
     model = applySmartModelOptimizations(model);
+    assertLogicalRuleSupport(model, 'surge');
     return renderSurgeFromTemplateModel(model, options);
 }
 
@@ -99,6 +109,7 @@ export function renderLoonFromIniTemplate(templateText, options = {}) {
         proxies,
     });
     model = applySmartModelOptimizations(model);
+    assertLogicalRuleSupport(model, 'loon');
     return renderLoonFromTemplateModel(model, options);
 }
 
@@ -118,6 +129,7 @@ export function renderQuanxFromIniTemplate(templateText, options = {}) {
         proxies,
     });
     model = applySmartModelOptimizations(model);
+    assertLogicalRuleSupport(model, 'quanx');
     return renderQuanxFromTemplateModel(model, options);
 }
 
@@ -137,5 +149,6 @@ export function renderEgernFromIniTemplate(templateText, options = {}) {
         proxies,
     });
     model = applySmartModelOptimizations(model);
+    assertLogicalRuleSupport(model, 'egern');
     return renderEgernFromTemplateModel(model);
 }

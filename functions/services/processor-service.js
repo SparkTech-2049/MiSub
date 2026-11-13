@@ -21,6 +21,9 @@ import yaml from 'js-yaml';
 import { urlsToClashProxies } from '../utils/url-to-clash.js';
 import { resolveSafeDnsConfig } from '../modules/subscription/safe-dns.js';
 import { applyMihomoChainProxyToClashConfig } from '../modules/subscription/mihomo-chain-proxy.js';
+import { guardClashPolicyConfig } from '../modules/subscription/policy-guard.js';
+import { parseRoutingRule } from '../modules/subscription/rule-syntax.js';
+import { adaptShadowrocketYaml } from '../modules/subscription/client-profile.js';
 
 function getTemplateExtension(templateUrl) {
     const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
@@ -122,6 +125,9 @@ export function renderClashYamlProfileTemplate(templateText, nodeList, options =
         .map((line) => line.trim())
         .filter((line) => line && !line.startsWith('#'));
     const proxies = urlsToClashProxies(nodeUrls, options).map(stripInternalProxyFields);
+    if (options.strictPolicies && proxies.length !== nodeUrls.length) {
+        throw new Error('A node could not be converted to the requested full configuration');
+    }
     deduplicateProxyNames(proxies);
 
     const chainConfigs = normalizeYamlChainConfigs(config);
@@ -133,27 +139,34 @@ export function renderClashYamlProfileTemplate(templateText, nodeList, options =
         });
     }
 
-    return yaml.dump(
-        {
-            ...config,
-            'allow-lan': false,
-            'bind-address': '127.0.0.1',
-            ipv6: false,
-            'external-controller': '127.0.0.1:9090',
-            dns: resolveSafeDnsConfig(config.dns, {
-                mode: options.dnsMode,
-                proxyGroup: '🌐 DNS 出口',
-            }),
-            proxies: config.proxies,
-        },
-        {
-            indent: 2,
-            lineWidth: -1,
-            noRefs: true,
-            quotingType: '"',
-            forceQuotes: false,
-        }
-    );
+    if (options.strictPolicies) {
+        guardClashPolicyConfig(config, (config.rules || []).map(parseRoutingRule));
+    }
+
+    const outputConfig = {
+        ...config,
+        'allow-lan': false,
+        'bind-address': '127.0.0.1',
+        ipv6: false,
+        'external-controller': '127.0.0.1:9090',
+        dns: resolveSafeDnsConfig(config.dns, {
+            mode: options.dnsMode,
+            proxyGroup: '🌐 DNS 出口',
+        }),
+        proxies: config.proxies,
+    };
+    if (options.clientProfile === 'windows-mihomo') outputConfig['find-process-mode'] = 'always';
+    if (options.clientProfile === 'shadowrocket') {
+        const excluded = adaptShadowrocketYaml(outputConfig);
+        options.onDiagnostics?.({ runtime: excluded });
+    }
+    return yaml.dump(outputConfig, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        quotingType: '"',
+        forceQuotes: false,
+    });
 }
 
 export class ProcessorService {
@@ -221,6 +234,8 @@ export class ProcessorService {
         });
 
         if (!builtinProxyContent) {
+            if (builtinOptions.strictPolicies)
+                throw new Error('Full configuration generator is unavailable');
             // Fallback to raw Base64 if generator fails
             return {
                 content: base64EncodeUtf8(combinedNodeList),
@@ -244,6 +259,14 @@ export class ProcessorService {
                 : null;
         const remoteTemplateUrl =
             shouldApplyTemplate && templateSource.kind === 'remote' ? templateSource.value : '';
+        if (
+            shouldApplyTemplate &&
+            ['builtin', 'custom'].includes(templateSource.kind) &&
+            !builtinTemplateEntry &&
+            !customTemplateEntry
+        ) {
+            throw new Error('Requested configuration template is missing or disabled');
+        }
 
         if (builtinTemplateEntry || customTemplateEntry || remoteTemplateUrl) {
             const templateText =
@@ -254,6 +277,8 @@ export class ProcessorService {
                 templateSource,
                 builtinTemplateEntry || customTemplateEntry
             );
+
+            if (!templateText?.trim()) throw new Error('Requested configuration template is empty');
 
             if (templateText && isIniTemplate) {
                 const renderParams = {
@@ -266,6 +291,15 @@ export class ProcessorService {
                     skipCertVerify: builtinOptions.skipCertVerify,
                     enableUdp: builtinOptions.enableUdp,
                     isMeta: builtinOptions.isMeta,
+                    strictPolicies: builtinOptions.strictPolicies,
+                    clientProfile: builtinOptions.clientProfile,
+                    onDiagnostics: (diagnostics) => {
+                        headers['X-MiSub-Config-Diagnostics'] = JSON.stringify({
+                            policyWarnings: diagnostics.policies?.length || 0,
+                            excludedWindowsRules: diagnostics.rules?.length || 0,
+                            excludedRuntimeFields: diagnostics.runtime || [],
+                        });
+                    },
                     customDnsOverride: builtinOptions.customDnsOverride || '',
                     dnsMode: builtinOptions.dnsMode || 'clean',
                 };
@@ -307,10 +341,37 @@ export class ProcessorService {
                 );
                 contentType = 'application/x-yaml; charset=utf-8';
                 headers['X-MiSub-Template-Mode'] = 'clash-yaml-profile';
+            } else {
+                throw new Error('Configuration template is incompatible with the requested target');
             }
         }
 
         // Set proper content type for built-in formats if not set by template
+        if (targetFormat === 'clash' && builtinOptions.strictPolicies) {
+            const checked = yaml.load(finalContent);
+            if (!Array.isArray(checked?.rules) || !Array.isArray(checked?.['proxy-groups'])) {
+                throw new Error('Full configuration is missing policies or rules');
+            }
+            const policyDiagnostics = guardClashPolicyConfig(
+                checked,
+                checked.rules.map(parseRoutingRule)
+            );
+            const diagnostics = JSON.parse(headers['X-MiSub-Config-Diagnostics'] || '{}');
+            diagnostics.policyWarnings =
+                (diagnostics.policyWarnings || 0) + policyDiagnostics.length;
+            if (builtinOptions.clientProfile === 'windows-mihomo')
+                checked['find-process-mode'] = 'always';
+            if (builtinOptions.clientProfile === 'shadowrocket') {
+                diagnostics.excludedRuntimeFields = [
+                    ...new Set([
+                        ...(diagnostics.excludedRuntimeFields || []),
+                        ...adaptShadowrocketYaml(checked),
+                    ]),
+                ];
+            }
+            headers['X-MiSub-Config-Diagnostics'] = JSON.stringify(diagnostics);
+            finalContent = yaml.dump(checked, { lineWidth: -1, noRefs: true });
+        }
         if (contentType === 'text/plain; charset=utf-8') {
             if (targetFormat === 'clash' || targetFormat === 'egern')
                 contentType = 'application/x-yaml; charset=utf-8';
