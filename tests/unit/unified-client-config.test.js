@@ -47,6 +47,9 @@ describe('shared Windows and Shadowrocket configurations', () => {
         }
     });
     it('rejects unscoped Windows rules and unsupported client conversions', () => {
+        expect(() => renderSurgeFromIniTemplate(UNIFIED_POLICY_TEMPLATE, options)).toThrow(
+            /not implemented/
+        );
         expect(() =>
             renderClashFromIniTemplate(
                 UNIFIED_POLICY_TEMPLATE.replace('[Rule:windows]', '[Rule]'),

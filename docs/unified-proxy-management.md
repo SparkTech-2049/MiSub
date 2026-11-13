@@ -4,6 +4,8 @@
 
 本功能复用现有 Profile、节点处理链、自定义 INI 模板和 Clash 输出。新增显式客户端参数、Windows 作用域规则和严格策略校验。原始 Base64 节点订阅继续可用。
 
+严格统一模板只支持本次实现的 Clash YAML 输出；请求其他完整配置格式会明确报错。旧模板的其他客户端转换继续兼容。
+
 完整 Shadowrocket 输出采用 Clash YAML 复用路径，包含节点、策略组、规则和 DNS。必须在实际 iPhone 的“配置”入口验证；Node 测试或 Mihomo 校验不能代替 Shadowrocket 真机验收。未实测证明 YAML 路径不可用前，不新增原生 `.conf` 生成器，也不使用 Surge 输出冒充。
 
 ## 后台配置

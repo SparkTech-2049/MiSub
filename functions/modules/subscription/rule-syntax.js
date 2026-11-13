@@ -83,6 +83,9 @@ export function formatRoutingRule(rule, value = rule.value) {
 
 export function assertLogicalRuleSupport(model, target) {
     if (target === 'clash') return;
+    if (model.meta?.strictPolicies) {
+        throw new Error(`Strict full profile conversion is not implemented for target ${target}`);
+    }
     if (model.rules.some((rule) => LOGIC.has(rule.type.toUpperCase()))) {
         throw new Error(
             `Logical rules are not implemented for target ${target}; use a scoped Windows rule`
