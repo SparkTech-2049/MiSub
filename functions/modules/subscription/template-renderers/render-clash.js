@@ -3,6 +3,7 @@ import { clashFix } from '../../../utils/format-utils.js';
 import { normalizeUnifiedTemplateModel } from '../template-model.js';
 import { DNS_PROXY_GROUP, resolveSafeDnsConfig } from '../safe-dns.js';
 import { applyMihomoChainProxy } from '../mihomo-chain-proxy.js';
+import { formatRoutingRule } from '../rule-syntax.js';
 
 function mapGroupType(type) {
     const normalized = String(type || '')
@@ -167,13 +168,11 @@ function getRuleProviderBehavior(providerUrl) {
 function mapRule(rule, ruleProviderMap) {
     const type = String(rule.type || '').toUpperCase();
     if (!type) return null;
-    if (type === 'MATCH' || type === 'FINAL') return `MATCH,${rule.policy}`;
-    if (type === 'GEOIP') return `GEOIP,${rule.value || 'CN'},${rule.policy}`;
     if (type === 'RULE-SET') {
         const providerName = ruleProviderMap.get(rule.value);
-        return `RULE-SET,${providerName || rule.value},${rule.policy}`;
+        return formatRoutingRule(rule, providerName || rule.value);
     }
-    return `${type},${rule.value},${rule.policy}`;
+    return formatRoutingRule(rule);
 }
 
 export function renderClashFromTemplateModel(model) {

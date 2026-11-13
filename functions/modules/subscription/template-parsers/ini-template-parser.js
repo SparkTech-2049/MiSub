@@ -1,5 +1,6 @@
 import { createUnifiedTemplateModel } from '../template-model.js';
 import { pinRemoteRuleUrl } from '../builtin-rules-provider.js';
+import { parseRoutingRule, splitRuleFields } from '../rule-syntax.js';
 
 function parseIniSections(templateText) {
     const lines = String(templateText || '').split(/\r?\n/);
@@ -54,23 +55,12 @@ function parseGroupLine(line) {
 }
 
 function parseRuleLine(line) {
-    const parts = line
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean);
-    if (parts.length < 2) return null;
-
-    return {
-        type: parts[0].toLowerCase(),
-        value: parts.length > 2 ? parts[1] : '',
-        policy: parts.length > 2 ? parts[2] : parts[1],
-        extras: parts.length > 3 ? parts.slice(3) : [],
-    };
+    return parseRoutingRule(line);
 }
 
 function parseAclRuleSetLine(line) {
     const raw = line.replace(/^ruleset=/i, '');
-    const parts = raw.split(',').map((part) => part.trim());
+    const parts = splitRuleFields(raw);
     if (parts.length < 2) return null;
 
     const policy = parts[0];
@@ -81,17 +71,16 @@ function parseAclRuleSetLine(line) {
 
     if (source.startsWith('[]')) {
         const inlineValue = source.slice(2);
-        const inlineParts = inlineValue
-            .split(',')
-            .map((part) => part.trim())
-            .filter(Boolean);
-        const type = (inlineParts[0] || '').toLowerCase();
+        const inlineParts = splitRuleFields(inlineValue);
+        const terminal = /^(MATCH|FINAL)$/i.test(inlineParts[0]);
+        const rule = parseRoutingRule(
+            terminal
+                ? [inlineParts[0], policy, ...inlineParts.slice(1)].join(',')
+                : [inlineParts[0], inlineParts[1], policy, ...inlineParts.slice(2)].join(',')
+        );
         return {
-            type,
-            value: inlineParts[1] || '',
-            policy,
+            ...rule,
             source: 'inline',
-            extras: inlineParts.slice(2),
         };
     }
 
