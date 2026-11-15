@@ -155,6 +155,72 @@ describe('api-handler storage helper usage', () => {
         );
     });
 
+    it.each([true, false])(
+        'settings changes retain protected sources (row-level reader: %s)',
+        async (useHelper) => {
+            const { handleSettingsSave } = await import('../../functions/modules/api-handler.js');
+            const actualCache = await vi.importActual(
+                '../../functions/services/node-cache-service.js'
+            );
+            const lastValidNodes = {
+                nodes: ['trojan://sample@us.example.com:443#US'],
+                nodeCount: 1,
+            };
+            const subscriptions = [
+                { id: 'protected', enableNodeCache: true },
+                { id: 'unprotected', enableNodeCache: false },
+            ];
+            const values = new Map([
+                ['worker_settings_v1', {}],
+                ['misub_subscriptions_v1', subscriptions],
+                ['node_cache_subscription_protected', lastValidNodes],
+                ['node_cache_subscription_unprotected', { nodes: ['old'] }],
+                ['node_cache_profile_windows', { nodes: 'old aggregate' }],
+            ]);
+            const adapter = {
+                get: async (key) => values.get(key) ?? null,
+                put: async (key, value) => values.set(key, value),
+                delete: async (key) => values.delete(key),
+                list: async (prefix) => [...values.keys()].filter((key) => key.startsWith(prefix)),
+            };
+            if (useHelper) adapter.getAllSubscriptions = async () => subscriptions;
+            createAdapter.mockReturnValue(adapter);
+            clearAllNodeCaches.mockImplementation(actualCache.clearAllNodeCaches);
+
+            const response = await handleSettingsSave(
+                new Request('https://example.com/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ FileName: 'Updated subscription' }),
+                }),
+                { MISUB_DB: {} }
+            );
+
+            expect(response.status).toBe(200);
+            expect(values.get('node_cache_subscription_protected')).toEqual(lastValidNodes);
+            expect(values.has('node_cache_profile_windows')).toBe(false);
+            expect(values.has('node_cache_subscription_unprotected')).toBe(false);
+        }
+    );
+
+    it('preferences-only saves leave node caches untouched', async () => {
+        const { handleSettingsSave } = await import('../../functions/modules/api-handler.js');
+        const response = await handleSettingsSave(
+            new Request('https://example.com/api/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-MiSub-Save-Scope': 'preferences',
+                },
+                body: JSON.stringify({ ignoredPendingItems: [] }),
+            }),
+            { MISUB_DB: {} }
+        );
+        expect(response.status).toBe(200);
+        expect(clearAllNodeCaches).not.toHaveBeenCalled();
+        expect(getAllSubscriptions).not.toHaveBeenCalled();
+    });
+
     it('handleMisubsSave preserves protective caches only for subscriptions with node cache enabled', async () => {
         const { handleMisubsSave } = await import('../../functions/modules/api-handler.js');
 
