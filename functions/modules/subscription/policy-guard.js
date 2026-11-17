@@ -1,4 +1,4 @@
-import { AI_SERVICE_RULES } from './builtin-rules-provider.js';
+import { PROTECTED_AI_SERVICES } from './ai-fail-closed.js';
 
 const ACTIONS = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE']);
 const UNSAFE = new Set(['DIRECT', 'PASS', 'COMPATIBLE']);
@@ -9,14 +9,10 @@ export function isProtectedPolicy(name = '') {
         name
     );
 }
-const sensitiveDomains = new Set(
-    AI_SERVICE_RULES.filter((service) =>
-        ['claude', 'openai', 'gemini'].includes(service.id)
-    ).flatMap((service) => service.domains)
-);
+const sensitiveDomains = PROTECTED_AI_SERVICES.flatMap((service) => service.domains);
 
 function isUsProxy(proxy) {
-    return /美国|🇺🇸|united\s*states|america|(?:^|[^a-z])us(?:[^a-z]|$)/i.test(
+    return /美国|🇺🇸|🇺🇲|united\s*states|america|(?:^|[^a-z])usa?(?:[^a-z]|$)/i.test(
         String(proxy.metadata?.region || proxy.name || proxy.tag || '')
     );
 }
@@ -91,7 +87,12 @@ export function guardPolicyGraph(model, { providers = {} } = {}) {
         .filter(
             (rule) =>
                 ['domain', 'domain-suffix'].includes(rule.type.toLowerCase()) &&
-                sensitiveDomains.has(rule.value?.toLowerCase())
+                sensitiveDomains.some((domain) => {
+                    const value = String(rule.value || '')
+                        .toLowerCase()
+                        .replace(/\.$/, '');
+                    return value === domain || value.endsWith(`.${domain}`);
+                })
         )
         .forEach((rule) => protectedRoots.add(rule.policy));
     for (const root of protectedRoots) {
@@ -101,6 +102,14 @@ export function guardPolicyGraph(model, { providers = {} } = {}) {
             if (checked.has(name)) return;
             checked.add(name);
             if (UNSAFE.has(name)) throw new Error('Protected policy has a path to DIRECT/PASS');
+            if (
+                proxies.has(name) &&
+                ['direct', 'pass', 'compatible'].includes(
+                    String(proxies.get(name).type).toLowerCase()
+                )
+            ) {
+                throw new Error('Protected policy has a path to a DIRECT/PASS outbound');
+            }
             if (proxies.has(name) && usOnly && !isUsProxy(proxies.get(name))) {
                 throw new Error(
                     'US-only protected policy contains a node without a US region label'

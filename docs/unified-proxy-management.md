@@ -73,22 +73,34 @@ DNS 与各协议传输字段仍需要实际 Shadowrocket 版本验收，尤其�
 
 ## Windows 本机设置与测试
 
-MiSub 可生成 Rule 模式、进程查找设置和 DNS；Clash Verge Rev 的服务模式、TUN 开关及本机权限需要在客户端确认。模板不自动接管 Windows 网络设置。
+MiSub 为显式严格的 Windows 完整配置（`client=windows-mihomo`）生成 Rule 模式、进程查找设置、DNS 和 TUN 声明；Clash Verge Rev 的服务模式及本机权限仍需客户端落实。订阅生成不会安装防火墙或修改操作系统网络设置。
 
 在 00-TEST 验证时，Clash Verge Rev 选择 Rule 模式和对应远程订阅，启用服务模式及 TUN。按本机内核版本核对以下 TUN 参数；不要将这些运行设置复制到 iOS：
 
 ```yaml
 tun:
     enable: true
-    stack: mixed
     auto-route: true
     auto-detect-interface: true
     strict-route: true
     dns-hijack:
         - any:53
+        - tcp://any:53
 ```
 
-这些是建议的本机覆写参数，当前业务模板不会擅自启用 TUN。配置中的 `ipv6: false` 不能证明 Windows 的所有 IPv6 路径已被系统阻断。需要测试浏览器安全 DNS、HTTP/3、TUN DNS 接管、网卡路由及 IPv6 访问。
+这些参数由严格 Windows 完整配置输出；已有 YAML 的 stack、MTU 等选择保留。Shadowrocket 输出不包含 TUN 或 Windows 进程规则。普通旧模板和非严格输出维持原有行为。配置中的 `ipv6: false` 不能证明 Windows 的所有 IPv6 路径已被系统阻断。需要测试浏览器安全 DNS、HTTP/3、TUN DNS 接管、网卡路由及 IPv6 访问。
+
+### 2026-11-17 同步的御三家保护规则
+
+严格 Windows/Shadowrocket 完整配置对现有 OpenAI-US、Claude-US、Gemini-US、Google-US 策略组补齐服务及依赖域名，保留 Gemini 与 Google 各自的美国节点选择。美国候选消失时沿用 REJECT，不加入 DIRECT；策略图还拒绝间接直连、受保护子域名的直连规则，以及伪装为美国节点的 direct 出站。
+
+既有共享模板若已明确将 Gemini 绑定到 Google-US 且没有 Gemini-US，保持原绑定，并为 Gemini 依赖域名和 Windows 进程补齐同组保护；不自动新增选择器或迁移节点选择。
+
+受保护域名的 DNS 通过相应独立组连接 Cloudflare/Google 的 DoH。显式自定义 DNS 中的国内、局域网及无关域名策略保留，但不能关闭这部分受保护域名的 DNS 接管或改成国内直连解析。缺失节点域名解析服务器时补充国内加密引导解析，避免解析代理节点产生递归。
+
+Windows 完整配置为 codex.exe、ChatGPT.exe、claude.exe、gemini.exe 添加专用进程规则；服务域名规则优先于进程兜底，原有 Edge/Chrome 的 Google 搜索例外保留在前。没有为通用 node.exe 或 python.exe 增加进程规则，以免改变国内工具的分流。
+
+新增声明仅保障代理内核运行时的订阅策略。Windows 防火墙、NRPT、Chrome/Edge 强制 PAC 与系统级 IPv6 阻断仍是独立的本机配置，不随订阅安装；不能仅凭服务端输出宣称已完成系统级断网保护。
 
 测试顺序：
 

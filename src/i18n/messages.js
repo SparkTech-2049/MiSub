@@ -1197,7 +1197,7 @@ export const messages = {
             dnsOverridePlaceholder:
                 '# YAML 格式（推荐）\ndns:\n  enable: true\n  ipv6: true\n  enhanced-mode: fake-ip\n  fake-ip-range: 198.18.0.1/16\n  fake-ip-filter:\n    - geosite:private\n  use-hosts: false\n  use-system-hosts: false\n  nameserver:\n    - https://1.1.1.1/dns-query\n    - https://8.8.8.8/dns-query\n  proxy-server-nameserver:\n    - https://223.5.5.5/dns-query\n    - https://223.6.6.6/dns-query\n  nameserver-policy:\n    geosite:cn:\n      - https://223.5.5.5/dns-query\n      - https://223.6.6.6/dns-query\n  respect-rules: true\n\n# 也可以使用 JSON 格式\n# {\n#   "enable": true,\n#   "enhanced-mode": "fake-ip",\n#   "nameserver": ["https://1.1.1.1/dns-query"]\n# }',
             dnsOverrideHint:
-                '留空则使用内置默认 DNS。填写的片段将完整替换 Clash 模板和内置生成器中的 dns 块。支持 JSON 和 YAML 两种格式，以 { 开头自动识别为 JSON，否则识别为 YAML。',
+                '留空则使用内置默认 DNS。填写的片段将替换普通配置中的 dns 块；严格完整配置仍保留 AI 域名的代理解析与基础防泄露设置。支持 JSON 和 YAML，以 { 开头识别为 JSON，否则为 YAML。',
             dnsOverrideInvalidJson: 'JSON 格式错误，请检查括号和引号。',
             dnsOverrideInvalidYaml: 'YAML 格式错误，请检查缩进和冒号语法。',
             dnsOverrideInvalidObject: 'DNS 配置必须是一个对象，不能是数组。',
@@ -3107,7 +3107,7 @@ export const messages = {
             dnsOverridePlaceholder:
                 '# YAML format (recommended)\ndns:\n  enable: true\n  ipv6: true\n  enhanced-mode: fake-ip\n  fake-ip-range: 198.18.0.1/16\n  fake-ip-filter:\n    - geosite:private\n  use-hosts: false\n  use-system-hosts: false\n  nameserver:\n    - https://1.1.1.1/dns-query\n    - https://8.8.8.8/dns-query\n  proxy-server-nameserver:\n    - https://223.5.5.5/dns-query\n    - https://223.6.6.6/dns-query\n  nameserver-policy:\n    geosite:cn:\n      - https://223.5.5.5/dns-query\n      - https://223.6.6.6/dns-query\n  respect-rules: true\n\n# JSON format also works\n# {\n#   "enable": true,\n#   "enhanced-mode": "fake-ip",\n#   "nameserver": ["https://1.1.1.1/dns-query"]\n# }',
             dnsOverrideHint:
-                'Leave empty to use the built-in default DNS. The snippet you enter completely replaces the dns block in both Clash templates and the built-in generator. Supports both JSON and YAML formats — starts with { is treated as JSON, otherwise YAML.',
+                'Leave empty to use the built-in default DNS. The snippet replaces the dns block in ordinary configurations; strict full profiles retain proxy DNS for AI domains and basic leak safeguards. Supports JSON and YAML: a leading { selects JSON, otherwise YAML.',
             dnsOverrideInvalidJson: 'Invalid JSON format. Please check brackets and quotes.',
             dnsOverrideInvalidYaml:
                 'Invalid YAML format. Please check indentation and colon syntax.',

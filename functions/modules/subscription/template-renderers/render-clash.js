@@ -6,6 +6,7 @@ import { applyMihomoChainProxy } from '../mihomo-chain-proxy.js';
 import { formatRoutingRule } from '../rule-syntax.js';
 import { guardPolicyGraph } from '../policy-guard.js';
 import { adaptShadowrocketYaml } from '../client-profile.js';
+import { applyAiFailClosedConfig } from '../ai-fail-closed.js';
 
 function mapGroupType(type) {
     const normalized = String(type || '')
@@ -280,6 +281,7 @@ export function renderClashFromTemplateModel(model, options = {}) {
         },
     };
 
+    applyAiFailClosedConfig(config, normalizedModel.meta);
     if (normalizedModel.meta.clientProfile === 'windows-mihomo')
         config['find-process-mode'] = 'always';
     if (normalizedModel.meta.clientProfile === 'shadowrocket') {
