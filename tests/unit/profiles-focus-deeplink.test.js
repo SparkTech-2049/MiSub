@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { reactive } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,8 +41,11 @@ import { useDataStore } from '../../src/stores/useDataStore.js';
 
 const scrollSpy = vi.fn();
 const mountedWrappers = [];
-afterEach(() => {
+afterEach(async () => {
+    // Settle the view's async modal imports before Vitest tears down its worker.
+    await flushPromises();
     mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+    await flushPromises();
 });
 
 function mountView() {

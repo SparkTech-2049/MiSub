@@ -215,7 +215,12 @@
             @update:show="showNodePreviewModal = $event"
         />
 
-        <QRCodeModal v-model:show="showQRCodeModal" :url="qrCodeUrl" :title="qrCodeTitle" />
+        <QRCodeModal
+            v-model:show="showQRCodeModal"
+            :url="qrCodeUrl"
+            :title="qrCodeTitle"
+            subscription
+        />
 
         <CopyLinkModal
             v-if="showCopyModal && showCopyModalProfile"

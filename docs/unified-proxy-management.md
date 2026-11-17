@@ -40,6 +40,10 @@ node scripts/prepare-unified-rollout.mjs BACKUP.json .private-rollout 家庭共�
 
 Shadowrocket 的“首页添加订阅”和“配置下载”是不同操作。新界面单独展示完整配置链接，旧一键导入标明“仅导入节点”。不能通过刷新首页节点订阅来验收规则同步。
 
+后台「我的订阅 → 复制订阅」也提供「Shadowrocket 小火箭（完整配置）」与「仅节点」两项。完整配置显式附带 `target=clash&client=shadowrocket`，复制后粘贴到小火箭「配置 → +」；仅节点显式请求 Base64 并用于首页订阅。订阅名称叫 iOS-Shadowrocket 不会自动改变通用复制链接的返回格式。
+
+后台订阅二维码可选择通用地址、小火箭完整配置、小火箭仅节点。小火箭两种模式分别编码 `shadowrocket://config/add/` 和 `shadowrocket://add/sub://` 动作；通用模式保留原始 URL。扫码器/相册对动作链接的支持仍需手机验证，识别失败时改用对应的复制链接入口。二维码内容含订阅凭据，不可作为公开验收截图。
+
 显式完整客户端输出要求内置引擎及 `target=clash`，不允许 `list=true`。配置失败返回 HTTP 422，不会悄然变为 Base64 节点列表。客户端必须保留上次有效配置并显示更新失败。
 
 ## 共享规则与策略
