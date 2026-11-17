@@ -1376,6 +1376,11 @@ export const messages = {
             dontShowAgain: '不再显示',
         },
         copyLink: {
+            shadowrocketConfig: 'Shadowrocket 小火箭（完整配置）',
+            shadowrocketConfigHint:
+                '含节点、代理分组和规则。复制后粘贴到小火箭「配置 → +」下载并启用；需使用统一代理模板与内置引擎。',
+            shadowrocketNodes: 'Shadowrocket 小火箭（仅节点）',
+            shadowrocketNodesHint: '用于首页添加订阅，不包含代理分组和分流规则。',
             autoDetect: '默认 (自动探测)',
             tokenMissing: '请在设置中配置一个固定的"订阅组分享Token"',
             copied: '链接已复制到剪贴板！',
@@ -1408,6 +1413,14 @@ export const messages = {
             submitting: '提交中...',
         },
         qr: {
+            importMode: '导入用途',
+            universal: '通用订阅地址',
+            universalHint:
+                '通用地址不保证可被小火箭扫码识别。需要代理分组时，请选择“小火箭（完整配置）”。',
+            shadowrocketConfigHint:
+                '使用小火箭扫描以打开完整配置安装；若相册扫码不识别，请用“复制订阅 → 小火箭（完整配置）”，粘贴到「配置 → +」。',
+            shadowrocketNodesHint: '使用小火箭扫描以添加节点订阅；此项不会安装代理分组和规则。',
+            privateLinkHint: '二维码含私人订阅凭据，请勿公开分享。',
             title: '二维码',
             saveImage: '保存二维码图片',
             generateFailed: '二维码生成失败，请重试',
@@ -3297,6 +3310,12 @@ export const messages = {
             dontShowAgain: 'Do not show again',
         },
         copyLink: {
+            shadowrocketConfig: 'Shadowrocket (full configuration)',
+            shadowrocketConfigHint:
+                'Includes nodes, policy groups and rules. Paste into Shadowrocket Config → +, download and enable. Requires the unified template and built-in engine.',
+            shadowrocketNodes: 'Shadowrocket (nodes only)',
+            shadowrocketNodesHint:
+                'For adding a subscription on Home. Does not include policy groups or routing rules.',
             autoDetect: 'Default (auto-detect)',
             tokenMissing: 'Please configure a fixed "subscription group share token" in settings',
             copied: 'Link copied to clipboard!',
@@ -3330,6 +3349,16 @@ export const messages = {
             submitting: 'Submitting...',
         },
         qr: {
+            importMode: 'Import purpose',
+            universal: 'Universal subscription URL',
+            universalHint:
+                'Shadowrocket may not recognize a plain subscription URL when scanning. Choose full configuration for policy groups.',
+            shadowrocketConfigHint:
+                'Scan in Shadowrocket to open configuration installation. If photo scanning fails, copy the full configuration link and paste into Config → +.',
+            shadowrocketNodesHint:
+                'Scan in Shadowrocket to add a node subscription. Policy groups and rules are not installed.',
+            privateLinkHint:
+                'The QR code contains private subscription credentials. Do not share publicly.',
             title: 'QR Code',
             saveImage: 'Save QR code image',
             generateFailed: 'Failed to generate QR code; please retry',

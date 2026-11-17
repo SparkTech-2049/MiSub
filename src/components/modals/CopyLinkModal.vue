@@ -5,6 +5,7 @@
     import { computed } from 'vue';
     import Modal from '../forms/Modal.vue';
     import { useToastStore } from '@/stores/toast';
+    import { shadowrocketConfigUrl, shadowrocketNodesUrl } from '../../utils/shadowrocket-links.js';
 
     const props = defineProps({
         show: Boolean,
@@ -35,6 +36,20 @@
             type: 'default',
             icon: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
             format: '',
+        },
+        {
+            name: t('copyLink.shadowrocketConfig'),
+            hint: t('copyLink.shadowrocketConfigHint'),
+            type: 'shadowrocket-config',
+            icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+            format: 'shadowrocket-config',
+        },
+        {
+            name: t('copyLink.shadowrocketNodes'),
+            hint: t('copyLink.shadowrocketNodesHint'),
+            type: 'shadowrocket-nodes',
+            icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+            format: 'shadowrocket-nodes',
         },
         {
             name: 'Clash',
@@ -70,7 +85,12 @@
             return;
         }
 
-        const link = `${baseUrl.value}${format}`;
+        const link =
+            format === 'shadowrocket-config'
+                ? shadowrocketConfigUrl(baseUrl.value)
+                : format === 'shadowrocket-nodes'
+                  ? shadowrocketNodesUrl(baseUrl.value)
+                  : `${baseUrl.value}${format}`;
 
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -161,6 +181,12 @@
                                 class="font-medium text-gray-900 dark:text-gray-100 group-hover:text-primary-700 dark:group-hover:text-primary-300"
                             >
                                 {{ client.name }}
+                            </p>
+                            <p
+                                v-if="client.hint"
+                                class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                            >
+                                {{ client.hint }}
                             </p>
                         </div>
                     </div>

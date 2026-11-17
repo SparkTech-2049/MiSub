@@ -2,6 +2,7 @@
     import { ref, computed, onMounted } from 'vue';
     import Modal from '../forms/Modal.vue';
     import { useI18n } from '@/i18n/index.js';
+    import { shadowrocketConfigUrl as buildShadowrocketConfigUrl } from '../../utils/shadowrocket-links.js';
 
     const props = defineProps({
         show: Boolean,
@@ -61,10 +62,7 @@
 
     const shadowrocketConfigUrl = computed(() => {
         if (!props.profile) return '';
-        const url = new URL(getSubscriptionUrl());
-        url.searchParams.set('target', 'clash');
-        url.searchParams.set('client', 'shadowrocket');
-        return url.toString();
+        return buildShadowrocketConfigUrl(getSubscriptionUrl());
     });
     const copyShadowrocketConfig = async () => {
         try {
@@ -223,7 +221,7 @@
 
         <template #body>
             <div
-                v-if="profile && clients.some((client) => client.id === 'shadowrocket')"
+                v-if="profile"
                 class="mb-5 rounded-lg border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-700 dark:bg-indigo-900/20"
             >
                 <p class="font-semibold">{{ t('quickImport.shadowrocketConfigTitle') }}</p>

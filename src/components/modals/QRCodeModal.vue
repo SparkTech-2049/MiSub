@@ -2,7 +2,8 @@
     import { useI18n } from '../../i18n/index.js';
 
     const { t } = useI18n();
-    import { ref, watch, nextTick } from 'vue';
+    import { ref, watch, nextTick, computed } from 'vue';
+    import { shadowrocketQrPayload } from '../../utils/shadowrocket-links.js';
     import QRCode from 'qrcode';
     import Modal from '../forms/Modal.vue';
     import { useToastStore } from '../../stores/toast.js';
@@ -24,16 +25,28 @@
             // 此时 setup 作用域的 t 尚不存在。改由模板兜底。
             default: '',
         },
+        subscription: Boolean,
     });
 
     const emit = defineEmits(['update:show']);
 
     const canvasRef = ref(null);
+    const importMode = ref('universal');
+    const payload = computed(() =>
+        props.subscription ? shadowrocketQrPayload(props.url, importMode.value) : props.url
+    );
+    const importHint = computed(() =>
+        importMode.value === 'shadowrocket-config'
+            ? t('qr.shadowrocketConfigHint')
+            : importMode.value === 'shadowrocket-nodes'
+              ? t('qr.shadowrocketNodesHint')
+              : t('qr.universalHint')
+    );
 
     const generateQRCode = async () => {
         if (!props.url || !canvasRef.value) return;
         try {
-            await QRCode.toCanvas(canvasRef.value, props.url, {
+            await QRCode.toCanvas(canvasRef.value, payload.value, {
                 width: 256,
                 margin: 2,
                 color: {
@@ -49,7 +62,7 @@
     };
 
     watch(
-        () => [props.show, props.url],
+        () => [props.show, props.url, importMode.value],
         async ([newShow, newUrl]) => {
             if (newShow && newUrl) {
                 await nextTick();
@@ -58,11 +71,17 @@
         },
         { immediate: true }
     );
+    watch(
+        () => [props.show, props.url],
+        () => {
+            importMode.value = 'universal';
+        }
+    );
 
     const downloadQRCode = () => {
         if (!canvasRef.value) return;
         const link = document.createElement('a');
-        link.download = `${props.title || 'qrcode'}.png`;
+        link.download = `${props.title || 'qrcode'}-${importMode.value}.png`;
         link.href = canvasRef.value.toDataURL('image/png');
         link.click();
     };
@@ -77,6 +96,25 @@
         </template>
         <template #body>
             <div class="flex flex-col items-center gap-6 py-4">
+                <div v-if="subscription" class="w-full space-y-2">
+                    <label class="block text-sm font-medium" for="qr-import-mode">{{
+                        t('qr.importMode')
+                    }}</label>
+                    <select
+                        id="qr-import-mode"
+                        v-model="importMode"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+                    >
+                        <option value="universal">{{ t('qr.universal') }}</option>
+                        <option value="shadowrocket-config">
+                            {{ t('copyLink.shadowrocketConfig') }}
+                        </option>
+                        <option value="shadowrocket-nodes">
+                            {{ t('copyLink.shadowrocketNodes') }}
+                        </option>
+                    </select>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ importHint }}</p>
+                </div>
                 <div
                     class="bg-white p-4 misub-radius-lg shadow-inner border border-gray-100 dark:border-gray-700"
                 >
@@ -84,7 +122,7 @@
                 </div>
 
                 <p class="text-sm text-center text-gray-500 max-w-xs break-all">
-                    {{ url }}
+                    {{ subscription ? t('qr.privateLinkHint') : url }}
                 </p>
 
                 <button
