@@ -20,6 +20,7 @@ import { base64EncodeUtf8 } from '../modules/utils.js';
 import yaml from 'js-yaml';
 import { urlsToClashProxies } from '../utils/url-to-clash.js';
 import { resolveSafeDnsConfig } from '../modules/subscription/safe-dns.js';
+import { applyAiFailClosedConfig } from '../modules/subscription/ai-fail-closed.js';
 import { applyMihomoChainProxyToClashConfig } from '../modules/subscription/mihomo-chain-proxy.js';
 import { guardClashPolicyConfig } from '../modules/subscription/policy-guard.js';
 import { parseRoutingRule } from '../modules/subscription/rule-syntax.js';
@@ -155,6 +156,7 @@ export function renderClashYamlProfileTemplate(templateText, nodeList, options =
         }),
         proxies: config.proxies,
     };
+    applyAiFailClosedConfig(outputConfig, options);
     if (options.clientProfile === 'windows-mihomo') outputConfig['find-process-mode'] = 'always';
     if (options.clientProfile === 'shadowrocket') {
         const excluded = adaptShadowrocketYaml(outputConfig);
@@ -352,6 +354,7 @@ export class ProcessorService {
             if (!Array.isArray(checked?.rules) || !Array.isArray(checked?.['proxy-groups'])) {
                 throw new Error('Full configuration is missing policies or rules');
             }
+            applyAiFailClosedConfig(checked, builtinOptions);
             const policyDiagnostics = guardClashPolicyConfig(
                 checked,
                 checked.rules.map(parseRoutingRule)

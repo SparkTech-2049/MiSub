@@ -27,6 +27,7 @@ export const AI_SERVICE_RULES = Object.freeze([
         name: 'Claude',
         domains: [
             'anthropic.com',
+            'anthropic.net',
             'claude.ai',
             'claude.com',
             'claudeusercontent.com',

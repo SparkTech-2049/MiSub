@@ -1,7 +1,7 @@
 import { AI_SERVICE_RULES, pinRemoteRuleUrl } from './builtin-rules-provider.js';
 
 const services = ['claude', 'openai', 'gemini'];
-const usFilter = '(^|[^A-Za-z])(US|USA|United States)([^A-Za-z]|$)|美国|🇺🇸';
+const usFilter = '(^|[^A-Za-z])(US|USA|United States)([^A-Za-z]|$)|美国|🇺🇸|🇺🇲';
 const independentUsPolicies = ['Claude-US', 'OpenAI-US', 'Gemini-US', 'Google-US']
     .map((name) => `custom_proxy_group=${name}\`select\`${usFilter}`)
     .join('\n');
@@ -24,6 +24,7 @@ ${serviceRules.join('\n')}
 DOMAIN-SUFFIX,google.com,Google-US
 DOMAIN-SUFFIX,gstatic.com,Google-US
 DOMAIN-SUFFIX,googleapis.com,Google-US
+DOMAIN-SUFFIX,googleusercontent.com,Google-US
 RULE-SET,${pinRemoteRuleUrl('https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list')},DIRECT
 GEOIP,CN,DIRECT,no-resolve
 MATCH,PROXY

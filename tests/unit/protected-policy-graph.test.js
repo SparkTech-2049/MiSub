@@ -16,6 +16,33 @@ const render = (groups, rules, proxies = nodes) =>
     );
 
 describe('protected policy graph', () => {
+    it.each([
+        'api.openai.com',
+        'bridge.claudeusercontent.com',
+        'anthropic.net',
+        'oauth2.googleapis.com',
+    ])('rejects direct routes for protected domain %s', (domain) => {
+        expect(() =>
+            render('PROXY = select, SG-01', `DOMAIN,${domain},DIRECT\nMATCH,PROXY`)
+        ).toThrow(/DIRECT/);
+    });
+    it('does not classify a lookalike domain as a protected domain', () => {
+        expect(() =>
+            render('PROXY = select, SG-01', 'DOMAIN,notopenai.com,DIRECT\nMATCH,PROXY')
+        ).not.toThrow();
+    });
+    it('rejects a named direct outbound even if its label looks like a US node', () => {
+        expect(() =>
+            render('Claude-US = select, US-local', 'MATCH,Claude-US', [
+                { name: 'US-local', type: 'direct' },
+            ])
+        ).toThrow(/DIRECT/);
+    });
+    it.each(['USA-01', '🇺🇲 Los Angeles'])('accepts the supported US label %s', (name) => {
+        expect(() =>
+            render(`Claude-US = select, ${name}`, 'MATCH,Claude-US', [{ ...nodes[0], name }])
+        ).not.toThrow();
+    });
     it('rejects sensitive domain rules that bypass a named AI policy', () => {
         expect(() =>
             render('PROXY = select, SG-01, DIRECT', 'DOMAIN-SUFFIX,claude.ai,PROXY\nMATCH,PROXY')

@@ -32,7 +32,7 @@ describe('shared Windows and Shadowrocket configurations', () => {
             'AND,((PROCESS-NAME,msedge.exe),(DOMAIN,www.google.com)),🇸🇬 新加坡节点',
             'AND,((PROCESS-NAME,chrome.exe),(DOMAIN,www.google.com)),🇺🇸 美国节点',
         ]);
-        expect(ios.rules).toEqual(windows.rules.slice(2));
+        expect(ios.rules).toEqual(windows.rules.filter((rule) => !/PROCESS-NAME/i.test(rule)));
         expect(ios.rules).toContain('DOMAIN-SUFFIX,gemini.google.com,Gemini-US');
         expect(ios.rules).toContain('GEOIP,CN,DIRECT,no-resolve');
         expect(ios.rules.at(-1)).toBe('MATCH,PROXY');
