@@ -25,6 +25,7 @@ import { applyMihomoChainProxyToClashConfig } from '../modules/subscription/miho
 import { guardClashPolicyConfig } from '../modules/subscription/policy-guard.js';
 import { parseRoutingRule } from '../modules/subscription/rule-syntax.js';
 import { adaptShadowrocketYaml } from '../modules/subscription/client-profile.js';
+import { renderShadowrocketConfig } from '../modules/subscription/render-shadowrocket.js';
 
 function getTemplateExtension(templateUrl) {
     const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
@@ -219,6 +220,24 @@ export class ProcessorService {
             storageAdapter,
             userInfoHeader,
         } = options || {};
+
+        if (targetFormat === 'shadowrocket') {
+            const intermediate = await ProcessorService.renderOutput({
+                ...options,
+                targetFormat: 'clash',
+                builtinOptions: {
+                    ...builtinOptions,
+                    clientProfile: 'shadowrocket',
+                    strictPolicies: true,
+                },
+            });
+            return {
+                content: renderShadowrocketConfig(yaml.load(intermediate.content), builtinOptions),
+                contentType: 'text/plain; charset=utf-8',
+                fileName: `${String(subName || 'MiSub-Shadowrocket').replace(/\.conf$/i, '')}.conf`,
+                headers: intermediate.headers,
+            };
+        }
 
         // Check for Base64 (simplest case)
         if (targetFormat === 'base64') {

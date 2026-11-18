@@ -4,9 +4,9 @@
 
 本功能复用现有 Profile、节点处理链、自定义 INI 模板和 Clash 输出。新增显式客户端参数、Windows 作用域规则和严格策略校验。原始 Base64 节点订阅继续可用。
 
-严格统一模板只支持本次实现的 Clash YAML 输出；请求其他完整配置格式会明确报错。旧模板的其他客户端转换继续兼容。
+严格统一模板支持 Windows 的 Clash YAML 与 Shadowrocket 原生 `.conf`；请求其他未实现的完整配置格式会明确报错。旧模板的其他客户端转换继续兼容。
 
-完整 Shadowrocket 输出采用 Clash YAML 复用路径，包含节点、策略组、规则和 DNS。必须在实际 iPhone 的“配置”入口验证；Node 测试或 Mihomo 校验不能代替 Shadowrocket 真机验收。未实测证明 YAML 路径不可用前，不新增原生 `.conf` 生成器，也不使用 Surge 输出冒充。
+2026-11-18 用户反馈 YAML 链接仅导入节点、未生成可启用配置文件，因此新增原生 Shadowrocket 渲染器：复用共享模型、Windows 规则投影和严格策略校验，再独立生成 `[General]`、`[Proxy]`、`[Proxy Group]`、`[Rule]`。响应文件名明确以 `.conf` 结尾。不能用重命名 YAML 或 Surge 输出代替原生配置。服务端检查仍不能代替 iPhone 的下载、启用与连接验收。
 
 ## 后台配置
 
@@ -35,16 +35,16 @@ node scripts/prepare-unified-rollout.mjs BACKUP.json .private-rollout 家庭共�
 | 用途         | 参数                                  | 导入位置                                         |
 | ------------ | ------------------------------------- | ------------------------------------------------ |
 | Windows      | `?target=clash&client=windows-mihomo` | Clash Verge Rev 远程订阅；一键导入已显式带该参数 |
-| iOS 完整配置 | `?target=clash&client=shadowrocket`   | Shadowrocket → 配置 → + → 从 URL 下载并启用      |
+| iOS 完整配置 | `?target=shadowrocket&client=shadowrocket` | Shadowrocket → 配置 → + → 从 URL 下载并启用 |
 | 旧节点订阅   | `?target=base64` 或原自适应链接       | 原来的节点订阅入口                               |
 
 Shadowrocket 的“首页添加订阅”和“配置下载”是不同操作。新界面单独展示完整配置链接，旧一键导入标明“仅导入节点”。不能通过刷新首页节点订阅来验收规则同步。
 
-后台「我的订阅 → 复制订阅」也提供「Shadowrocket 小火箭（完整配置）」与「仅节点」两项。完整配置显式附带 `target=clash&client=shadowrocket`，复制后粘贴到小火箭「配置 → +」；仅节点显式请求 Base64 并用于首页订阅。订阅名称叫 iOS-Shadowrocket 不会自动改变通用复制链接的返回格式。
+后台「我的订阅 → 复制订阅」提供「Shadowrocket 小火箭（完整配置）」与「仅节点」两项。完整配置显式附带 `target=shadowrocket&client=shadowrocket`，复制后粘贴到小火箭「配置 → +」；也可点击“下载 .conf 配置文件”。已有 `target=clash&client=shadowrocket` 链接在请求处理层迁移到相同原生输出，Windows 的 `client=windows-mihomo` 保持 YAML。仅节点显式请求 Base64 并用于首页订阅。订阅名称叫 iOS-Shadowrocket 不会自动改变通用复制链接的返回格式。
 
 后台订阅二维码可选择通用地址、小火箭完整配置、小火箭仅节点。小火箭两种模式分别编码 `shadowrocket://config/add/` 和 `shadowrocket://add/sub://` 动作；通用模式保留原始 URL。扫码器/相册对动作链接的支持仍需手机验证，识别失败时改用对应的复制链接入口。二维码内容含订阅凭据，不可作为公开验收截图。
 
-显式完整客户端输出要求内置引擎及 `target=clash`，不允许 `list=true`。配置失败返回 HTTP 422，不会悄然变为 Base64 节点列表。客户端必须保留上次有效配置并显示更新失败。
+显式完整客户端输出要求内置引擎及匹配的客户端目标格式，不允许 `list=true`。配置失败返回 HTTP 422，不会悄然变为 Base64 节点列表。客户端必须保留上次有效配置并显示更新失败。
 
 ## 共享规则与策略
 
@@ -69,11 +69,11 @@ Claude-US = select, US-VPS-STABLE
 
 ## Shadowrocket 能力边界
 
-复用完整 YAML 时保留节点、组、规则及 DNS；显式排除本地端口、控制器、TUN 和 Windows 进程运行设置。当前 iOS 路由允许 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、IP-CIDR、IP-CIDR6、GEOIP、RULE-SET、MATCH/FINAL；组类型允许 select/url-test/fallback。MRS、proxy-providers、dialer-proxy 和未实现转换的规则/组类型会报错，不静默删除业务规则。
+原生输出支持当前所需的 HTTP/HTTPS、SOCKS5、Shadowsocks、Trojan、VMess、VLESS 节点；VLESS 支持已实现的 TCP、WebSocket、gRPC、REALITY/Vision 参数映射。未实现的协议、传输与重要字段明确报错。路由允许 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、IP-CIDR、IP-CIDR6、GEOIP、经典文本 RULE-SET、FINAL；组类型允许 select/url-test/fallback。MRS、proxy-providers、dialer-proxy、未知规则和未实现的组参数不静默删除。配置不含 Windows 本地端口、控制器、TUN 和进程规则。
 
-DNS 与各协议传输字段仍需要实际 Shadowrocket 版本验收，尤其是 Fake-IP、GeoSite DNS 策略、远程规则 provider、REALITY 和协议扩展。不能把这份能力边界当作完整的 Shadowrocket 官方兼容矩阵。
+使用 Shadowrocket 原生 DNS 设置，不复制 Mihomo Fake-IP/GeoSite 字段。国内直连 DNS 与节点引导 DNS沿用原配置，受保护服务域名使用 `force-remote-dns` 经对应代理解析；通用和备用 DNS 使用经已校验代理策略连接的 DoH，不回退系统 DNS。声明禁用 IPv6，UDP 不受节点支持时 REJECT。仍需真机核对实际解析、REALITY 连接和断连行为，不能仅凭声明声称 iOS 系统级零泄露。
 
-若真机验证显示某字段不兼容，先在独立适配层显式转换或返回错误；若仍无法同时更新节点、组和规则，再新增消费同一模板模型的 Shadowrocket 原生渲染器。
+原生配置里的同名 `PROXY` 自定义组改为 `MiSub 默认代理` 并同步引用，避免与小火箭内置 PROXY 策略冲突。节点名中的逗号、等号等 INI 分隔符转换为全角显示字符，保持节点与组引用一致；凭据不改写。手动节点优先（自建洛杉矶优先），其余按美国、香港、台湾、日本、新加坡等地区稳定排序，订阅信息提示置后。排序不增加或删除节点，不改变各组原有默认策略身份。小火箭 UA 的节点订阅及带 `node-order=manual-region` 的专用 Base64 链接采用相同排序；Windows 输出不受影响。
 
 ## Windows 本机设置与测试
 

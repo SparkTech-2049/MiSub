@@ -188,6 +188,14 @@
                             >
                                 {{ client.hint }}
                             </p>
+                            <a
+                                v-if="client.type === 'shadowrocket-config'"
+                                :href="shadowrocketConfigUrl(baseUrl)"
+                                download
+                                @click.stop
+                                class="mt-2 inline-block text-sm font-medium text-primary-600 underline dark:text-primary-400"
+                                >{{ t('copyLink.downloadShadowrocketConfig') }}</a
+                            >
                         </div>
                     </div>
 

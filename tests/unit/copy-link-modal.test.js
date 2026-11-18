@@ -36,14 +36,17 @@ describe('CopyLinkModal', () => {
         );
         expect(full, 'Missing full configuration entry in CopyLinkModal').toBeTruthy();
         expect(nodes, 'Missing separately labelled node subscription').toBeTruthy();
+        expect(full.find('a[download]').attributes('href')).toBe(
+            `${window.location.origin}/share-token/p1?target=shadowrocket&client=shadowrocket`
+        );
         await full.trigger('click');
         expect(writeText).toHaveBeenLastCalledWith(
-            `${window.location.origin}/share-token/p1?target=clash&client=shadowrocket`
+            `${window.location.origin}/share-token/p1?target=shadowrocket&client=shadowrocket`
         );
         expect(full.text()).toContain('配置 → +');
         await nodes.trigger('click');
         expect(writeText).toHaveBeenLastCalledWith(
-            `${window.location.origin}/share-token/p1?target=base64`
+            `${window.location.origin}/share-token/p1?target=base64&node-order=manual-region`
         );
     });
 

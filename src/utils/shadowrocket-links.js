@@ -1,6 +1,6 @@
 export function shadowrocketConfigUrl(baseUrl) {
   const url = new URL(baseUrl);
-  url.searchParams.set('target', 'clash');
+  url.searchParams.set('target', 'shadowrocket');
   url.searchParams.set('client', 'shadowrocket');
   url.searchParams.delete('list');
   return url.toString();
@@ -9,6 +9,7 @@ export function shadowrocketConfigUrl(baseUrl) {
 export function shadowrocketNodesUrl(baseUrl) {
   const url = new URL(baseUrl);
   url.searchParams.set('target', 'base64');
+  url.searchParams.set('node-order', 'manual-region');
   url.searchParams.delete('client');
   url.searchParams.delete('list');
   return url.toString();
