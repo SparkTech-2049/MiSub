@@ -1378,7 +1378,7 @@ export const messages = {
         copyLink: {
             shadowrocketConfig: 'Shadowrocket 小火箭（完整配置）',
             shadowrocketConfigHint:
-                '原生 .conf 文件，含节点、代理分组和规则。复制链接后粘贴到小火箭「配置 → +」下载并启用，也可直接下载文件。',
+                '在小火箭「配置 → +」下载并启用，或直接下载 .conf 文件。启用后，从小火箭首页下拉查看代理分组。',
             downloadShadowrocketConfig: '下载 .conf 配置文件',
             shadowrocketNodes: 'Shadowrocket 小火箭（仅节点）',
             shadowrocketNodesHint: '用于首页添加订阅，不包含代理分组和分流规则。',
@@ -3313,7 +3313,7 @@ export const messages = {
         copyLink: {
             shadowrocketConfig: 'Shadowrocket (full configuration)',
             shadowrocketConfigHint:
-                'Native .conf with nodes, policy groups and rules. Paste the link into Shadowrocket Config → +, download and enable, or download the file directly.',
+                'Download and enable in Shadowrocket Config → +, or download the .conf file directly. After enabling, pull down on Home to see policy groups.',
             downloadShadowrocketConfig: 'Download .conf configuration',
             shadowrocketNodes: 'Shadowrocket (nodes only)',
             shadowrocketNodesHint:

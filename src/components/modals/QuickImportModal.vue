@@ -2,7 +2,10 @@
     import { ref, computed, onMounted } from 'vue';
     import Modal from '../forms/Modal.vue';
     import { useI18n } from '@/i18n/index.js';
-    import { shadowrocketConfigUrl as buildShadowrocketConfigUrl } from '../../utils/shadowrocket-links.js';
+    import {
+        shadowrocketConfigUrl as buildShadowrocketConfigUrl,
+        shadowrocketQrPayload,
+    } from '../../utils/shadowrocket-links.js';
 
     const props = defineProps({
         show: Boolean,
@@ -38,7 +41,7 @@
         clashbox: 'clash://install-config?url={url_clash}&name={name}',
         v2rayn: 'v2rayng://install-config?url={url}',
         v2rayng: 'v2rayng://install-config?url={url}',
-        shadowrocket: 'shadowrocket://add/sub://{url_base64}?remark={name}',
+        shadowrocket: 'shadowrocket://add/',
         hiddify: 'hiddify://import/{url}',
         nekobox: 'nekobox://install-config?name={name}&type=SUBSCRIPTION&url={url}',
         stash: 'stash://install-config?url={url}&name={name}',
@@ -62,7 +65,7 @@
 
     const shadowrocketConfigUrl = computed(() => {
         if (!props.profile) return '';
-        return buildShadowrocketConfigUrl(getSubscriptionUrl());
+        return buildShadowrocketConfigUrl(getSubscriptionUrl(), props.profile.name);
     });
     const copyShadowrocketConfig = async () => {
         try {
@@ -89,6 +92,8 @@
 
     const generateDeepLink = (client) => {
         const subUrl = getSubscriptionUrl();
+        if (client.id === 'shadowrocket')
+            return shadowrocketQrPayload(subUrl, 'shadowrocket-nodes', props.profile?.name);
         const clashSubUrl =
             client.id === 'clash-verge-rev'
                 ? withQueryParam(
@@ -108,7 +113,6 @@
                 '{name}',
                 encodeURIComponent(props.profile?.name || t('quickImport.defaultName'))
             )
-            .replace('{url_base64}', btoa(subUrl))
             .replace('{url_encoded}', encodeURIComponent(subUrl));
     };
 

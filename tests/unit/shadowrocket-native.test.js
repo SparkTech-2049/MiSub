@@ -153,11 +153,26 @@ describe('Shadowrocket native configuration', () => {
     for (const group of source['proxy-groups'])
       group.proxies = group.proxies.map((member) => (member === original ? renamed : member));
     const output = renderShadowrocketConfig(source);
-    expect(output).toContain('HK，with＝separators = trojan');
+    expect(output).toContain('HK with separators = trojan');
     expect(output).not.toContain(renamed);
     expect(output).toContain('#proxy=');
     expect(output).not.toContain('fallback-dns-server = system');
     source.proxies[0]['dialer-proxy'] = source['proxy-groups'][0].name;
     expect(() => renderShadowrocketConfig(source)).toThrow();
+  });
+
+  it('shortens names consistently in the configuration and node feed while retaining multipliers', async () => {
+    const original = '🇺🇲 [IPLC-移动优化 -美国-洛杉矶-VLESS] ✨ 2x';
+    const raw = `trojan://test@us.example.com:443#${encodeURIComponent(original)}`;
+    const output = await ProcessorService.renderOutput({ ...options, combinedNodeList: raw });
+    const compact = '🇺🇸 IPLC-洛杉矶-VLESS 2x';
+    expect(output.content).toContain(`${compact} = trojan`);
+    expect(output.content).toContain(`OpenAI-US = select, ${compact}`);
+    expect(output.content).toContain(`policy-select-name=${compact}`);
+    expect(output.content.indexOf('OpenAI-US =')).toBeLessThan(
+      output.content.indexOf('美国节点 =')
+    );
+    const feed = sortShadowrocketNodeList(raw, [], { compactNames: true });
+    expect(feed.trim()).toBe(`trojan://test@us.example.com:443#${encodeURIComponent(compact)}`);
   });
 });
