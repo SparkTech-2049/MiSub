@@ -104,6 +104,73 @@ describe('handleMisubRequest regression coverage', () => {
         vi.restoreAllMocks();
     });
 
+    it('downloads cached Shadowrocket configurations without fetching nested upstreams', async () => {
+        const adapter = createStorageAdapter({
+            settings: {
+                profileToken: 'profiles',
+                enableTrafficNode: false,
+                transformConfigMode: 'preset',
+                transformConfig: 'builtin:unified_proxy_management',
+            },
+            profiles: [
+                {
+                    id: 'ios-parent',
+                    name: 'iOS',
+                    enabled: true,
+                    transformConfigMode: 'global',
+                    subProfiles: ['child'],
+                },
+                { id: 'child', name: 'Shared', enabled: true, subscriptions: ['airport'] },
+            ],
+            subscriptions: [
+                {
+                    id: 'airport',
+                    name: 'Airport',
+                    url: 'https://airport.example/sub',
+                    enabled: true,
+                },
+            ],
+        });
+        const cacheKey = 'node_cache_profile_ios-parent';
+        adapter.store.set(cacheKey, {
+            nodes: 'trojan://test@cached.example:443#US-Cached',
+            nodeCount: 1,
+            timestamp: Date.now(),
+        });
+        createAdapter.mockReturnValue(adapter);
+        const fetch = vi.fn(
+            async () => new Response('trojan://test@upstream.example:443#US-Upstream')
+        );
+        vi.stubGlobal('fetch', fetch);
+        silenceExpectedRequestLogs();
+        const { handleMisubRequest } =
+            await import('../../functions/modules/subscription/main-handler.js');
+        const request = () =>
+            handleMisubRequest({
+                request: new Request(
+                    'https://misub.example/profiles/ios-parent?target=clash&client=shadowrocket',
+                    {
+                        headers: { 'User-Agent': 'Shadowrocket' },
+                    }
+                ),
+                env: {},
+                waitUntil: vi.fn(),
+            });
+
+        const hit = await request();
+        expect(hit.status).toBe(200);
+        expect(hit.headers.get('X-Cache-Status')).toBe('HIT');
+        expect(await hit.text()).toContain('cached.example');
+        expect(fetch).not.toHaveBeenCalled();
+
+        adapter.store.delete(cacheKey);
+        const miss = await request();
+        expect(miss.status).toBe(200);
+        expect(miss.headers.get('X-Cache-Status')).toBe('MISS');
+        expect(await miss.text()).toContain('upstream.example');
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('uses the real storage adapter for per-subscription protective node cache', async () => {
         const subscriptions = [
             {

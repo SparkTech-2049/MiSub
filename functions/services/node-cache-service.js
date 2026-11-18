@@ -75,9 +75,10 @@ function isSubscriptionNodeCacheKey(key) {
  * 获取缓存
  * @param {Object} storageAdapter - 存储适配器
  * @param {string} cacheKey - 缓存键
+ * @param {number} maxAge - 最大保留时间，单位为毫秒
  * @returns {Promise<{data: CacheEntry|null, status: 'fresh'|'stale'|'expired'|'miss'}>}
  */
-export async function getCache(storageAdapter, cacheKey) {
+export async function getCache(storageAdapter, cacheKey, maxAge = CACHE_CONFIG.MAX_AGE) {
     try {
         const cached = await storageAdapter.get(cacheKey);
         if (!cached) {
@@ -91,7 +92,7 @@ export async function getCache(storageAdapter, cacheKey) {
             return { data: cached, status: 'fresh' };
         } else if (age < CACHE_CONFIG.STALE_TTL) {
             return { data: cached, status: 'stale' };
-        } else if (age < CACHE_CONFIG.MAX_AGE) {
+        } else if (age < maxAge) {
             return { data: cached, status: 'expired' };
         } else {
             return { data: null, status: 'miss' };
@@ -108,9 +109,16 @@ export async function getCache(storageAdapter, cacheKey) {
  * @param {string} cacheKey - 缓存键
  * @param {string} nodes - 节点列表字符串
  * @param {string[]} sources - 来源订阅名称列表
+ * @param {number} maxAge - 最大保留时间，单位为毫秒
  * @returns {Promise<boolean>}
  */
-export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
+export async function setCache(
+    storageAdapter,
+    cacheKey,
+    nodes,
+    sources = [],
+    maxAge = CACHE_CONFIG.MAX_AGE
+) {
     try {
         const nodeCount = nodes.split('\n').filter((line) => line.trim()).length;
         if (isLikelyPartialAggregateNodeList(nodes)) {
@@ -147,8 +155,8 @@ export async function setCache(storageAdapter, cacheKey, nodes, sources = []) {
             sources,
         };
 
-        // 计算 TTL（秒），使用 MAX_AGE 作为过期时间
-        const ttlSeconds = Math.ceil(CACHE_CONFIG.MAX_AGE / 1000);
+        // 计算 TTL（秒）。
+        const ttlSeconds = Math.ceil(maxAge / 1000);
 
         // 尝试使用 KV 原生 TTL
         if (storageAdapter.kv && typeof storageAdapter.kv.put === 'function') {

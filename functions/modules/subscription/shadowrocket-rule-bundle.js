@@ -40,6 +40,7 @@ async function fetchRuleBundle() {
         headers: { Accept: 'text/plain' },
         redirect: 'manual',
         signal: AbortSignal.timeout(4000),
+        cf: { cacheEverything: true, cacheTtlByStatus: { 200: 300, '300-599': 0 } },
     });
     if (!response.ok || !response.body) throw new Error(`Rule bundle HTTP ${response.status}`);
     const decoder = new TextDecoder('utf-8', { fatal: true });

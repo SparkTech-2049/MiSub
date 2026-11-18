@@ -62,6 +62,7 @@ function maskSensitiveLogValue(value) {
 }
 
 const PROFILE_DOWNLOAD_COUNT_PREFIX = 'misub_profile_download_count_';
+const SHADOWROCKET_PROFILE_CACHE_MAX_AGE = 72 * 60 * 60 * 1000;
 
 function getProfileDownloadCountKey(profile) {
     return `${PROFILE_DOWNLOAD_COUNT_PREFIX}${profile.customId || profile.id}`;
@@ -657,6 +658,7 @@ export async function handleMisubRequest(context) {
     const shouldSkipLogging = shouldSkipAccessLog(userAgentHeader);
 
     let targetMisubs;
+    let resolveNestedSources;
     let subName = config.FileName;
     let isProfileExpired = false; // Moved declaration here
 
@@ -779,47 +781,51 @@ export async function handleMisubRequest(context) {
                     });
                 }
 
-                // 3. Add sub-profiles in order defined by profile (嵌套组合订阅)
-                const profileSubProfileIds = profile.subProfiles || [];
+                // Resolve child profiles only when the caller needs fresh nodes.
+                const profileSubProfileIds = profile.subProfiles;
                 if (Array.isArray(profileSubProfileIds) && profileSubProfileIds.length > 0) {
-                    for (const subProfileId of profileSubProfileIds) {
-                        if (
-                            !subProfileId ||
-                            subProfileId === profile.id ||
-                            subProfileId === profile.customId
-                        ) {
-                            continue;
-                        }
-                        try {
-                            const subResult = await handleProfileMode(
-                                request,
-                                env,
-                                subProfileId,
-                                userAgentHeader,
-                                true,
-                                shouldSkipCertificateVerify,
-                                1,
-                                new Set([profile.id, profile.customId].filter(Boolean))
-                            );
-                            if (subResult.success && Array.isArray(subResult.nodes)) {
-                                subResult.nodes.forEach((node) => {
-                                    targetMisubs.push({
-                                        id: `nested-${subProfileId}-${node.url}`,
-                                        name: node.name,
-                                        url: node.url,
-                                        group: subResult.profileName || '组合订阅',
-                                        isFromSubProfile: true,
-                                        enabled: true,
-                                    });
-                                });
+                    resolveNestedSources = async () => {
+                        const sources = [];
+                        for (const subProfileId of profileSubProfileIds) {
+                            if (
+                                !subProfileId ||
+                                subProfileId === profile.id ||
+                                subProfileId === profile.customId
+                            ) {
+                                continue;
                             }
-                        } catch (err) {
-                            console.error(
-                                `[MainHandler] Failed to resolve sub-profile ${subProfileId}:`,
-                                err
-                            );
+                            try {
+                                const subResult = await handleProfileMode(
+                                    request,
+                                    env,
+                                    subProfileId,
+                                    userAgentHeader,
+                                    true,
+                                    shouldSkipCertificateVerify,
+                                    1,
+                                    new Set([profile.id, profile.customId].filter(Boolean))
+                                );
+                                if (subResult.success && Array.isArray(subResult.nodes)) {
+                                    for (const node of subResult.nodes) {
+                                        sources.push({
+                                            id: `nested-${subProfileId}-${node.url}`,
+                                            name: node.name,
+                                            url: node.url,
+                                            group: subResult.profileName || '组合订阅',
+                                            isFromSubProfile: true,
+                                            enabled: true,
+                                        });
+                                    }
+                                }
+                            } catch (err) {
+                                console.error(
+                                    `[MainHandler] Failed to resolve sub-profile ${subProfileId}:`,
+                                    err
+                                );
+                            }
                         }
-                    }
+                        return sources;
+                    };
                 }
             }
             // [新增] 增加订阅组下载计数
@@ -884,6 +890,11 @@ export async function handleMisubRequest(context) {
             'Full client configurations require their matching target and the built-in engine without list=true',
             { status: 400 }
         );
+    }
+
+    if (resolveNestedSources && targetFormat !== 'shadowrocket') {
+        targetMisubs = targetMisubs.concat(await resolveNestedSources());
+        resolveNestedSources = undefined;
     }
 
     // [Access Log] Record access log and stats if enabled
@@ -975,6 +986,10 @@ export async function handleMisubRequest(context) {
         profileIdentifier ? 'profile' : 'token',
         profileIdentifier || token
     );
+    const maxCacheAge =
+        targetFormat === 'shadowrocket' && currentProfile
+            ? SHADOWROCKET_PROFILE_CACHE_MAX_AGE
+            : undefined;
 
     // 检查是否强制刷新（通过 URL 参数）
     const forceRefresh =
@@ -984,6 +999,9 @@ export async function handleMisubRequest(context) {
 
     // 定义刷新函数（用于后台刷新）
     const refreshNodes = async (isBackground = false) => {
+        const sources = resolveNestedSources
+            ? targetMisubs.concat(await resolveNestedSources())
+            : targetMisubs;
         const isDebugToken = token === 'b0b422857bb46aba65da8234c84f38c6';
         // 组合节点列表
         // 传递 context 对象以获取请求信息用于日志记录
@@ -1115,7 +1133,7 @@ export async function handleMisubRequest(context) {
             context, // 传入完整 context
             { ...config, enableAccessLog: false }, // [Deferred Logging] Disable service-side logging, we will log manually in handler
             userAgentHeader,
-            targetMisubs,
+            sources,
             prependedContentForSubconverter,
             {
                 ...generationSettings,
@@ -1123,14 +1141,20 @@ export async function handleMisubRequest(context) {
                 ruleLevel: ruleLevel || generationSettings.ruleLevel,
             }
         );
-        const sourceNames = targetMisubs
+        const sourceNames = sources
             .filter((s) => typeof s?.url === 'string' && s.url.startsWith('http'))
             .map((s) => s.name || s.url);
         // 仅在至少一个订阅源真正从远程拉取成功时才刷新缓存时间
         // 如果没有 HTTP 订阅源（纯手动节点/过期订阅组），则始终写入缓存
         const stats = context.generationStats;
         if (!stats?.sourceCount || stats.upstreamSuccessCount > 0) {
-            const cacheSaved = await setCache(storageAdapter, cacheKey, freshNodes, sourceNames);
+            const cacheSaved = await setCache(
+                storageAdapter,
+                cacheKey,
+                freshNodes,
+                sourceNames,
+                maxCacheAge
+            );
             const freshNodeCount = freshNodes.split('\n').filter((line) => line.trim()).length;
             const existingCache = cacheSaved ? null : await storageAdapter.get(cacheKey);
             const existingNodeCount =
@@ -1180,6 +1204,7 @@ export async function handleMisubRequest(context) {
         context,
         targetMisubsCount: targetMisubs.length,
         expectedNodeCount: expectedRemoteNodeCount,
+        maxCacheAge,
     });
 
     console.log(`[MiSub Nodes] Count/Length: ${combinedNodeList ? combinedNodeList.length : 0}`);

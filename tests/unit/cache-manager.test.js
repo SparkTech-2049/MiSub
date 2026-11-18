@@ -57,6 +57,34 @@ describe('resolveNodeListWithCache', () => {
         expect(refreshNodes).toHaveBeenCalledWith(false);
     });
 
+    it('can serve yesterday’s complete snapshot while refreshing in the background', async () => {
+        const node = 'trojan://password@1.2.3.4:443#HK-01';
+        const refreshNodes = vi.fn();
+        vi.useFakeTimers();
+        try {
+            const context = { waitUntil: vi.fn() };
+            const result = await resolveNodeListWithCache({
+                storageAdapter: createStorage({
+                    nodes: node,
+                    timestamp: Date.now() - 24 * 60 * 60 * 1000,
+                    nodeCount: 1,
+                }),
+                cacheKey: 'node_cache_profile_native_test',
+                forceRefresh: false,
+                refreshNodes,
+                context,
+                targetMisubsCount: 1,
+                maxCacheAge: 72 * 60 * 60 * 1000,
+            });
+            expect(result.combinedNodeList).toBe(node);
+            expect(result.cacheHeaders['X-Cache-Status']).toBe('REFRESHING');
+            expect(refreshNodes).toHaveBeenCalledWith(true);
+            expect(context.waitUntil).toHaveBeenCalledOnce();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('ignores a fresh aggregate cache that is far below the known subscription node count', async () => {
         const refreshNodes = vi.fn().mockResolvedValue('trojan://fresh@example.com:443#Fresh');
 
