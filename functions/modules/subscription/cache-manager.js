@@ -46,10 +46,11 @@ export async function resolveNodeListWithCache({
     context,
     targetMisubsCount,
     expectedNodeCount = 0,
+    maxCacheAge,
 }) {
     const { data: cachedData, status: cacheStatus } = forceRefresh
         ? { data: null, status: 'miss' }
-        : await getCache(storageAdapter, cacheKey);
+        : await getCache(storageAdapter, cacheKey, maxCacheAge);
 
     let combinedNodeList;
     let cacheHeaders = {};
