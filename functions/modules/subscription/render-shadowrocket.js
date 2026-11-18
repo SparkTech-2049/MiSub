@@ -1,6 +1,7 @@
 import { guardClashPolicyConfig, isProtectedPolicy } from './policy-guard.js';
 import { parseRoutingRule } from './rule-syntax.js';
 import { shadowrocketProxyNames, sortShadowrocketProxies } from './shadowrocket-order.js';
+import { formatShadowrocketRuleBundle } from './shadowrocket-rule-bundle.js';
 
 // Native Shadowrocket syntax, distinct from Surge and Mihomo YAML.
 // Reference: https://github.com/LOWERTOP/Shadowrocket/blob/main/lazy_group.conf
@@ -265,6 +266,10 @@ export function renderShadowrocketConfig(source, options = {}) {
         ...extras,
       ].join(',')
     );
+  }
+  if (options.ruleBundle && groupNames.includes('PROXY') && sections.at(-1) === 'FINAL,DIRECT') {
+    const existingKeys = new Set(config.rules.map((rule) => rule.split(',').slice(0, 2).join(',')));
+    sections.splice(-1, 0, formatShadowrocketRuleBundle(options.ruleBundle, name('PROXY'), existingKeys));
   }
   return sections.join('\n') + '\n';
 }

@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ProcessorService } from '../../functions/services/processor-service.js';
 import yaml from 'js-yaml';
 import {
   renderShadowrocketConfig,
   renderShadowrocketProxy,
 } from '../../functions/modules/subscription/render-shadowrocket.js';
+import { parseShadowrocketRuleBundle } from '../../functions/modules/subscription/shadowrocket-rule-bundle.js';
 import {
   manualProxyKeys,
   sortShadowrocketProxies,
@@ -59,6 +60,42 @@ describe('Shadowrocket native configuration', () => {
     });
     expect(output.content).toMatch(/OpenAI-US = select, REJECT/);
     expect(output.content).toContain('DOMAIN-SUFFIX,chatgpt.com,OpenAI-US,force-remote-dns');
+  });
+
+  it('uses a published bundle only for an opted-in native profile and keeps local rules first', async () => {
+    const entries = Array.from({ length: 50 }, (_, i) =>
+      `DOMAIN,site${i}.example,PROXY,force-remote-dns`
+    );
+    const bundle = ['# Shadowrocket-Rule-Sets v1', 'DOMAIN-SUFFIX,chatgpt.com,DIRECT', ...entries].join('\n');
+    const template = {
+      id: 'native-aggregate',
+      content: '[MiSub]\nshadowrocket-rule-bundle=true\n[Rule]\nDOMAIN-SUFFIX,chatgpt.com,OpenAI-US\nMATCH,DIRECT\n[custom]\ncustom_proxy_group=OpenAI-US`select`US\ncustom_proxy_group=PROXY`select`US',
+    };
+    const custom = {
+      ...options,
+      templateSource: { kind: 'custom', value: template.id },
+      storageAdapter: { get: async () => [template] },
+    };
+    const fetch = vi.fn(async () => new Response(bundle));
+    vi.stubGlobal('fetch', fetch);
+    try {
+      await ProcessorService.renderOutput({
+        ...custom, targetFormat: 'clash', builtinOptions: { ...options.builtinOptions, clientProfile: 'windows-mihomo' },
+      });
+      expect(fetch).not.toHaveBeenCalled();
+      const output = await ProcessorService.renderOutput(custom);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(output.headers['X-MiSub-Shadowrocket-Rules']).toBe('aggregated');
+      expect(output.content).toContain('DOMAIN-SUFFIX,chatgpt.com,OpenAI-US,force-remote-dns');
+      expect(output.content).not.toContain('DOMAIN-SUFFIX,chatgpt.com,DIRECT');
+      const added = 'DOMAIN,site0.example,MiSub 默认代理,force-remote-dns';
+      expect(output.content).toContain(added);
+      expect(output.content.indexOf(added)).toBeLessThan(output.content.indexOf('FINAL,DIRECT'));
+      expect(() => parseShadowrocketRuleBundle(`${bundle}\n[MITM]`)).toThrow();
+      expect(() => parseShadowrocketRuleBundle(`${bundle}\n${entries[0]}`)).toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('pins the actual manual account first, groups other nodes by region and leaves info last', () => {

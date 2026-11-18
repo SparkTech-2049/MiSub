@@ -26,6 +26,10 @@ import { guardClashPolicyConfig } from '../modules/subscription/policy-guard.js'
 import { parseRoutingRule } from '../modules/subscription/rule-syntax.js';
 import { adaptShadowrocketYaml } from '../modules/subscription/client-profile.js';
 import { renderShadowrocketConfig } from '../modules/subscription/render-shadowrocket.js';
+import {
+    loadShadowrocketRuleBundle,
+    usesShadowrocketRuleBundle,
+} from '../modules/subscription/shadowrocket-rule-bundle.js';
 
 function getTemplateExtension(templateUrl) {
     const raw = typeof templateUrl === 'string' ? templateUrl.trim() : '';
@@ -231,11 +235,27 @@ export class ProcessorService {
                     strictPolicies: true,
                 },
             });
+            const ruleBundle = intermediate.shadowrocketRuleBundle
+                ? await loadShadowrocketRuleBundle()
+                : undefined;
+            const content = renderShadowrocketConfig(yaml.load(intermediate.content), {
+                ...builtinOptions,
+                ruleBundle,
+            });
             return {
-                content: renderShadowrocketConfig(yaml.load(intermediate.content), builtinOptions),
+                content,
                 contentType: 'text/plain; charset=utf-8',
                 fileName: `${String(subName || 'MiSub-Shadowrocket').replace(/\.conf$/i, '')}.conf`,
-                headers: intermediate.headers,
+                headers: {
+                    ...intermediate.headers,
+                    ...(intermediate.shadowrocketRuleBundle && {
+                        'X-MiSub-Shadowrocket-Rules': content.includes(
+                            '\n# Shadowrocket-Rule-Sets v1\n'
+                        )
+                            ? 'aggregated'
+                            : 'local-fallback',
+                    }),
+                },
             };
         }
 
@@ -267,6 +287,7 @@ export class ProcessorService {
 
         let finalContent = builtinProxyContent;
         let contentType = 'text/plain; charset=utf-8';
+        let shadowrocketRuleBundle = false;
         const headers = userInfoHeader ? { 'Subscription-Userinfo': userInfoHeader } : {};
 
         const shouldApplyTemplate = !builtinOptions.hiddifyCompatible;
@@ -302,6 +323,11 @@ export class ProcessorService {
             if (!templateText?.trim()) throw new Error('Requested configuration template is empty');
 
             if (templateText && isIniTemplate) {
+                shadowrocketRuleBundle = Boolean(
+                    customTemplateEntry &&
+                    builtinOptions.clientProfile === 'shadowrocket' &&
+                    usesShadowrocketRuleBundle(templateText)
+                );
                 const renderParams = {
                     nodeList: combinedNodeList,
                     fileName: subName,
@@ -405,6 +431,7 @@ export class ProcessorService {
             content: finalContent,
             contentType,
             headers,
+            ...(shadowrocketRuleBundle && { shadowrocketRuleBundle }),
         };
     }
 }
