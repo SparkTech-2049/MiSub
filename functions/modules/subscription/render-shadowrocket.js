@@ -233,11 +233,6 @@ export function renderShadowrocketConfig(source, options = {}) {
       `${name(group.name)} = ${group.type}, ${members.map(name).join(', ')}, ${extras.join(', ')}`
     );
   }
-  for (const label of options.vpsTrafficLabels || []) {
-    if (occupied.has(label)) continue;
-    occupied.add(label);
-    sections.push(`${policyName(label)} = select, REJECT, hidden=0`);
-  }
   sections.push('', '[Rule]');
   for (const raw of config.rules) {
     const rule = parseRoutingRule(raw);

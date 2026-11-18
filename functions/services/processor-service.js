@@ -219,14 +219,12 @@ export class ProcessorService {
             managedConfigUrl,
             storageAdapter,
             userInfoHeader,
-            vpsTrafficLabels = [],
         } = options || {};
 
         if (targetFormat === 'shadowrocket') {
             const intermediate = await ProcessorService.renderOutput({
                 ...options,
                 targetFormat: 'clash',
-                vpsTrafficLabels: [],
                 builtinOptions: {
                     ...builtinOptions,
                     clientProfile: 'shadowrocket',
@@ -234,10 +232,7 @@ export class ProcessorService {
                 },
             });
             return {
-                content: renderShadowrocketConfig(yaml.load(intermediate.content), {
-                    ...builtinOptions,
-                    vpsTrafficLabels,
-                }),
+                content: renderShadowrocketConfig(yaml.load(intermediate.content), builtinOptions),
                 contentType: 'text/plain; charset=utf-8',
                 fileName: `${String(subName || 'MiSub-Shadowrocket').replace(/\.conf$/i, '')}.conf`,
                 headers: intermediate.headers,
@@ -398,26 +393,6 @@ export class ProcessorService {
             }
             headers['X-MiSub-Config-Diagnostics'] = JSON.stringify(diagnostics);
             finalContent = yaml.dump(checked, { lineWidth: -1, noRefs: true });
-        }
-        if (targetFormat === 'clash' && vpsTrafficLabels.length) {
-            const rendered = yaml.load(finalContent);
-            if (Array.isArray(rendered?.['proxy-groups'])) {
-                const occupied = new Set(
-                    [...rendered['proxy-groups'], ...(rendered.proxies || [])].map(
-                        (item) => item.name
-                    )
-                );
-                for (const label of vpsTrafficLabels) {
-                    if (occupied.has(label)) continue;
-                    occupied.add(label);
-                    rendered['proxy-groups'].push({
-                        name: label,
-                        type: 'select',
-                        proxies: ['REJECT'],
-                    });
-                }
-                finalContent = yaml.dump(rendered, { lineWidth: -1, noRefs: true });
-            }
         }
         if (contentType === 'text/plain; charset=utf-8') {
             if (targetFormat === 'clash' || targetFormat === 'egern')

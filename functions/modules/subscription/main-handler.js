@@ -1,15 +1,6 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { resolveClientProfile } from './client-profile.js';
-import {
-    includedManualNodes,
-    manualProxyKeys,
-    sortShadowrocketNodeList,
-} from './shadowrocket-order.js';
-import {
-    configuredVpsTraffic,
-    readVpsTraffic,
-    vpsTrafficLabel,
-} from '../../services/vps-traffic-service.js';
+import { manualProxyKeys, sortShadowrocketNodeList } from './shadowrocket-order.js';
 import {
     migrateConfigSettings,
     formatBytes,
@@ -1372,28 +1363,6 @@ export async function handleMisubRequest(context) {
         targetFormat === 'base64' &&
         (/shadowrocket/i.test(userAgentHeader) ||
             url.searchParams.get('node-order') === 'manual-region');
-    const showVpsTraffic =
-        !isProfileExpired &&
-        !urlList &&
-        !url.searchParams.has('callback_token') &&
-        (targetFormat === 'base64' ||
-            (useBuiltin && ['clash', 'shadowrocket'].includes(targetFormat)));
-    const vpsTrafficLabels = [];
-    if (showVpsTraffic) {
-        const nodes = includedManualNodes(combinedNodeList, allMisubs.filter(configuredVpsTraffic));
-        for (let offset = 0; offset < nodes.length; offset += 4) {
-            const results = await Promise.allSettled(
-                nodes.slice(offset, offset + 4).map(async (node) => {
-                    const status = await readVpsTraffic(storageAdapter, node, env);
-                    return status && vpsTrafficLabel(node, status);
-                })
-            );
-            for (const result of results) {
-                if (result.status === 'fulfilled' && result.value)
-                    vpsTrafficLabels.push(result.value);
-            }
-        }
-    }
     if (isShadowrocketNodeFeed) {
         combinedNodeList = sortShadowrocketNodeList(combinedNodeList, manualProxyKeys(allMisubs), {
             compactNames: true,
@@ -1404,13 +1373,7 @@ export async function handleMisubRequest(context) {
         if (isProfileExpired) {
             contentToEncode = DEFAULT_EXPIRED_NODE + '\n';
         } else {
-            const infoNodes = vpsTrafficLabels.map(
-                (label) =>
-                    `trojan://00000000-0000-0000-0000-000000000000@127.0.0.1:443#${encodeURIComponent(label)}`
-            );
-            contentToEncode = infoNodes.length
-                ? `${combinedNodeList.trimEnd()}\n${infoNodes.join('\n')}\n`
-                : combinedNodeList;
+            contentToEncode = combinedNodeList;
         }
         const headers = {
             'Content-Type': 'text/plain; charset=utf-8',
@@ -1529,7 +1492,6 @@ export async function handleMisubRequest(context) {
                 managedConfigUrl,
                 storageAdapter,
                 userInfoHeader,
-                vpsTrafficLabels,
             });
 
             // [Subconverter API] 处理 list=true 逻辑：仅输出节点片段

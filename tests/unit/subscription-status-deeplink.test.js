@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { reactive } from 'vue';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Reactive so the view's `watch(() => route.query.status)` actually fires.
 const route = reactive({ query: {}, path: '/dashboard/subscriptions' });
@@ -54,15 +54,9 @@ const seed = {
 };
 
 let pinia;
-const mountedWrappers = [];
-
-afterEach(async () => {
-    await vi.dynamicImportSettled();
-    mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount());
-});
 
 function mountView(locale = 'zh-CN') {
-    const wrapper = mount(SubscriptionGroupsView, {
+    return mount(SubscriptionGroupsView, {
         global: {
             plugins: [pinia, createI18n({ initialLocale: locale })],
             stubs: {
@@ -76,8 +70,6 @@ function mountView(locale = 'zh-CN') {
             },
         },
     });
-    mountedWrappers.push(wrapper);
-    return wrapper;
 }
 
 describe('SubscriptionGroupsView 深链状态筛选 (?status=)', () => {
