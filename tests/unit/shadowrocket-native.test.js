@@ -62,6 +62,37 @@ describe('Shadowrocket native configuration', () => {
     expect(output.content).toContain('DOMAIN-SUFFIX,chatgpt.com,OpenAI-US,force-remote-dns');
   });
 
+  it('serves the local rule snapshot before the upstream publication finishes', async () => {
+    vi.resetModules();
+    const { loadShadowrocketRuleBundle } = await import(
+      '../../functions/modules/subscription/shadowrocket-rule-bundle.js'
+    );
+    const snapshot = ['# Shadowrocket-Rule-Sets v1', ...Array.from({ length: 50 }, (_, i) =>
+      `DOMAIN,example${i}.com,PROXY,force-remote-dns`
+    )].join('\n');
+    let finishFetch;
+    const upstream = new Promise((resolve) => { finishFetch = resolve; });
+    const fetch = vi.fn(() => upstream);
+    const assets = { fetch: vi.fn(async () => new Response(snapshot)) };
+    const kv = { get: vi.fn(async () => null), put: vi.fn(async () => {}) };
+    let refresh;
+    const context = { assets, kv, origin: 'https://misub.example', waitUntil: (promise) => { refresh = promise; } };
+    vi.stubGlobal('fetch', fetch);
+    try {
+      const rules = await loadShadowrocketRuleBundle(context);
+      expect(rules.filter(({ key }) => key)).toHaveLength(50);
+      expect(assets.fetch.mock.calls[0][0].url).toBe('https://misub.example/rules/shadowrocket-bootstrap.txt');
+      expect(fetch).toHaveBeenCalledOnce();
+      expect(kv.put).not.toHaveBeenCalled();
+      finishFetch(new Response(snapshot + '\nDOMAIN,new.example,PROXY,force-remote-dns'));
+      await refresh;
+      expect(kv.put).toHaveBeenCalledOnce();
+      expect((await loadShadowrocketRuleBundle(context)).filter(({ key }) => key)).toHaveLength(51);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses a published bundle only for an opted-in native profile and keeps local rules first', async () => {
     const entries = Array.from({ length: 50 }, (_, i) =>
       `DOMAIN,site${i}.example,PROXY,force-remote-dns`
