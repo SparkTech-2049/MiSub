@@ -1517,6 +1517,15 @@ export async function handleMisubRequest(context) {
                 managedConfigUrl,
                 storageAdapter,
                 userInfoHeader,
+                ruleBundleContext:
+                    targetFormat === 'shadowrocket' && context.waitUntil
+                        ? {
+                              assets: env.ASSETS,
+                              kv: StorageFactory.resolveKV(env),
+                              origin: url.origin,
+                              waitUntil: (promise) => context.waitUntil(promise),
+                          }
+                        : undefined,
             });
 
             // [Subconverter API] 处理 list=true 逻辑：仅输出节点片段

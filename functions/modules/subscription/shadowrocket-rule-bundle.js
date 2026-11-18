@@ -1,6 +1,9 @@
 const BUNDLE_URL =
     'https://raw.githubusercontent.com/SparkTech-2049/Shadowrocket-Rule-Sets/refs/heads/main/dist/shadowrocket.rules';
 const BUNDLE_HEADER = '# Shadowrocket-Rule-Sets v1';
+const BOOTSTRAP_PATH = '/rules/shadowrocket-bootstrap.txt';
+const CACHE_KEY = 'shadowrocket_public_rule_bundle_v1';
+const REFRESH_INTERVAL = 60 * 60 * 1000;
 const MAX_BYTES = 3_000_000;
 const DOMAIN_RULE =
     /^(DOMAIN(?:-SUFFIX)?,[a-z0-9-]+(?:\.[a-z0-9-]+)+),(DIRECT|PROXY,force-remote-dns)$/;
@@ -22,7 +25,7 @@ export function usesShadowrocketRuleBundle(templateText) {
 }
 
 export function parseShadowrocketRuleBundle(text) {
-    const lines = text.trimEnd().split('\n');
+    const lines = text.trimEnd().split(/\r?\n/);
     if (lines[0] !== BUNDLE_HEADER || lines.length < 51)
         throw new Error('Invalid rule bundle header or count');
     const keys = new Set();
@@ -35,13 +38,7 @@ export function parseShadowrocketRuleBundle(text) {
     });
 }
 
-async function fetchRuleBundle() {
-    const response = await fetch(BUNDLE_URL, {
-        headers: { Accept: 'text/plain' },
-        redirect: 'manual',
-        signal: AbortSignal.timeout(4000),
-        cf: { cacheEverything: true, cacheTtlByStatus: { 200: 300, '300-599': 0 } },
-    });
+async function readBundleResponse(response) {
     if (!response.ok || !response.body) throw new Error(`Rule bundle HTTP ${response.status}`);
     const decoder = new TextDecoder('utf-8', { fatal: true });
     const reader = response.body.getReader();
@@ -58,17 +55,28 @@ async function fetchRuleBundle() {
         chunks.push(decoder.decode(value, { stream: true }));
     }
     chunks.push(decoder.decode());
-    return parseShadowrocketRuleBundle(chunks.join(''));
+    return chunks.join('');
 }
 
-export function loadShadowrocketRuleBundle() {
-    if (Date.now() < retryAfter) return Promise.resolve(lastGood);
+function refreshRuleBundle(kv) {
     if (inFlight) return inFlight;
-    inFlight = fetchRuleBundle()
-        .then((rules) => {
-            lastGood = rules;
-            retryAfter = Date.now() + 60 * 60 * 1000;
-            return rules;
+    inFlight = fetch(BUNDLE_URL, {
+        headers: { Accept: 'text/plain' },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(4000),
+        cf: { cacheEverything: true, cacheTtlByStatus: { 200: 300, '300-599': 0 } },
+    })
+        .then(readBundleResponse)
+        .then(async (text) => {
+            lastGood = parseShadowrocketRuleBundle(text);
+            const updatedAt = Date.now();
+            retryAfter = updatedAt + REFRESH_INTERVAL;
+            try {
+                await kv?.put(CACHE_KEY, `${updatedAt}\n${text}`);
+            } catch (error) {
+                console.warn(`[Shadowrocket] Rule snapshot cache write failed: ${error.message}`);
+            }
+            return lastGood;
         })
         .catch((error) => {
             console.warn(`[Shadowrocket] Using previous or local rules: ${error.message}`);
@@ -79,6 +87,45 @@ export function loadShadowrocketRuleBundle() {
             inFlight = undefined;
         });
     return inFlight;
+}
+
+async function readStoredBundle(kv) {
+    const cached = await kv?.get(CACHE_KEY);
+    if (!cached || cached.length > MAX_BYTES + 32) return;
+    const index = cached.indexOf('\n');
+    const updatedAt = Number(cached.slice(0, index));
+    if (index < 1 || !Number.isFinite(updatedAt) || updatedAt <= 0 || updatedAt > Date.now())
+        return;
+    return { rules: parseShadowrocketRuleBundle(cached.slice(index + 1)), updatedAt };
+}
+
+export async function loadShadowrocketRuleBundle(context) {
+    if (Date.now() < retryAfter) return lastGood;
+    if (!context?.waitUntil || !context.assets?.fetch) return refreshRuleBundle();
+
+    if (!lastGood) {
+        try {
+            const stored = await readStoredBundle(context.kv);
+            if (stored && !lastGood) {
+                lastGood = stored.rules;
+                retryAfter = stored.updatedAt + REFRESH_INTERVAL;
+            }
+        } catch (error) {
+            console.warn(`[Shadowrocket] Rule snapshot cache read failed: ${error.message}`);
+        }
+        if (!lastGood) {
+            try {
+                const url = new URL(BOOTSTRAP_PATH, context.origin);
+                const response = await context.assets.fetch(new Request(url));
+                const rules = parseShadowrocketRuleBundle(await readBundleResponse(response));
+                lastGood ??= rules;
+            } catch (error) {
+                console.warn(`[Shadowrocket] Bootstrap rule asset unavailable: ${error.message}`);
+            }
+        }
+    }
+    if (!inFlight && Date.now() >= retryAfter) context.waitUntil(refreshRuleBundle(context.kv));
+    return lastGood;
 }
 
 export function formatShadowrocketRuleBundle(bundle, managedProxy, existingKeys) {

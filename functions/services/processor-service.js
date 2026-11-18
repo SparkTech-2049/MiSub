@@ -223,6 +223,7 @@ export class ProcessorService {
             managedConfigUrl,
             storageAdapter,
             userInfoHeader,
+            ruleBundleContext,
         } = options || {};
 
         if (targetFormat === 'shadowrocket') {
@@ -236,7 +237,7 @@ export class ProcessorService {
                 },
             });
             const ruleBundle = intermediate.shadowrocketRuleBundle
-                ? await loadShadowrocketRuleBundle()
+                ? await loadShadowrocketRuleBundle(ruleBundleContext)
                 : undefined;
             const content = renderShadowrocketConfig(yaml.load(intermediate.content), {
                 ...builtinOptions,
