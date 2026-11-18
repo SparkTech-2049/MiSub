@@ -5,12 +5,16 @@
     import GroupSelector from '../ui/GroupSelector.vue'; // Added
     import { useDataStore } from '../../stores/useDataStore.js';
     import { useSubscriptions } from '../../composables/useSubscriptions.js';
-    import { useBulkImportLogic, needsServerParsing } from '../../composables/useBulkImportLogic.js';
+    import {
+        useBulkImportLogic,
+        needsServerParsing,
+    } from '../../composables/useBulkImportLogic.js';
     import { useManualNodes } from '../../composables/useManualNodes.js';
     import { useI18n } from '../../i18n/index.js';
     import { parseSurgeConfig } from '../../utils/protocolConverter.js';
     import { IMPORT_FILE_ACCEPT, readFilesAsText } from '../../utils/importFile.js';
     import { buildAutoGroupName } from '../../utils/auto-group-name.js';
+    import { normalizeVpsTraffic } from '../../../shared/vps-traffic.js';
 
     const props = defineProps({
         show: Boolean,
@@ -161,11 +165,41 @@
         }
     };
 
+    const trafficError = ref(false);
+    const toggleTraffic = (event) => {
+        trafficError.value = false;
+        props.editingNode.vpsTraffic = {
+            resetDay: 1,
+            resetTime: '00:00',
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            usageMode: 'reported',
+            ...props.editingNode.vpsTraffic,
+            enabled: event.target.checked,
+        };
+    };
+    watch(
+        () => props.editingNode?.id,
+        () => {
+            trafficError.value = false;
+        }
+    );
+
     const handleConfirm = async () => {
         // v2rayn:// 私有分享格式、Clash YAML、sing-box JSON 前端解析不了，
         // 单行粘贴时也要交给后端转成标准 URI，否则会被原样存成一个坏节点
         const rawUrl = (props.editingNode?.url || '').trim();
         const requiresServerParsing = props.isNew && rawUrl && needsServerParsing(rawUrl);
+        if (props.editingNode?.vpsTraffic?.enabled) {
+            try {
+                if (isMultiLine.value || requiresServerParsing)
+                    throw new Error('VPS traffic requires one node');
+                props.editingNode.vpsTraffic = normalizeVpsTraffic(props.editingNode.vpsTraffic);
+                trafficError.value = false;
+            } catch {
+                trafficError.value = true;
+                return;
+            }
+        }
 
         if (props.isNew && (isMultiLine.value || requiresServerParsing)) {
             // 多行批量导入 / 需后端转换：未填写分组时自动生成一个（用户无需手填）
@@ -361,6 +395,97 @@
                         </div>
                     </div>
                 </div>
+
+                <fieldset
+                    v-if="!isMultiLine"
+                    class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+                >
+                    <legend class="px-1 text-sm font-semibold">
+                        {{ t('manualNodes.vpsTraffic') }}
+                    </legend>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            :checked="editingNode.vpsTraffic?.enabled"
+                            @change="toggleTraffic"
+                        />
+                        {{ t('manualNodes.vpsTrafficEnable') }}
+                    </label>
+                    <div v-if="editingNode.vpsTraffic?.enabled" class="grid gap-3 sm:grid-cols-2">
+                        <label class="text-sm"
+                            >{{ t('manualNodes.vpsQuota') }}
+                            <input
+                                v-model.number="editingNode.vpsTraffic.quotaGb"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            />
+                        </label>
+                        <label class="text-sm"
+                            >{{ t('manualNodes.vpsResetDay') }}
+                            <input
+                                v-model.number="editingNode.vpsTraffic.resetDay"
+                                type="number"
+                                min="1"
+                                max="31"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            />
+                        </label>
+                        <label class="text-sm"
+                            >{{ t('manualNodes.vpsResetTime') }}
+                            <input
+                                v-model="editingNode.vpsTraffic.resetTime"
+                                type="time"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            />
+                        </label>
+                        <label class="text-sm"
+                            >{{ t('manualNodes.vpsTimeZone') }}
+                            <input
+                                v-model.trim="editingNode.vpsTraffic.timeZone"
+                                type="text"
+                                placeholder="Asia/Singapore"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            />
+                        </label>
+                        <label class="text-sm sm:col-span-2"
+                            >{{ t('manualNodes.vpsUsageMode') }}
+                            <select
+                                v-model="editingNode.vpsTraffic.usageMode"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            >
+                                <option value="reported">{{ t('manualNodes.vpsReported') }}</option>
+                                <option value="sum">{{ t('manualNodes.vpsSum') }}</option>
+                                <option value="max">{{ t('manualNodes.vpsMax') }}</option>
+                            </select>
+                        </label>
+                        <label class="text-sm sm:col-span-2"
+                            >{{ t('manualNodes.vpsSource') }}
+                            <input
+                                v-model.trim="editingNode.vpsTraffic.sourceUrl"
+                                type="url"
+                                placeholder="https://example.com/usage.json"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            />
+                        </label>
+                        <label class="text-sm sm:col-span-2"
+                            >{{ t('manualNodes.vpsTokenBinding') }}
+                            <input
+                                v-model.trim="editingNode.vpsTraffic.authBinding"
+                                type="text"
+                                placeholder="VPS_TRAFFIC_TOKEN_LA"
+                                class="mt-1 w-full rounded border bg-transparent px-2 py-1"
+                            />
+                        </label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 sm:col-span-2">
+                            {{ t('manualNodes.vpsSourceHint') }}
+                        </p>
+                    </div>
+                    <p v-if="trafficError" role="alert" class="text-sm text-red-600">
+                        {{ t('manualNodes.vpsInvalid') }}
+                    </p>
+                </fieldset>
 
                 <!-- 节点链接 -->
                 <div class="relative group">

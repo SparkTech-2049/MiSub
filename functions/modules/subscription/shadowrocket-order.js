@@ -104,6 +104,20 @@ export function manualProxyKeys(sources = []) {
     .flatMap((source) => urlsToClashProxies([source.url], { addFlagEmoji: false }).map(identity));
 }
 
+export function includedManualNodes(nodeList, sources) {
+  if (!sources.length) return [];
+  const nodes = urlsToClashProxies(
+    String(nodeList || '')
+      .split(/\r?\n/)
+      .filter(Boolean),
+    {
+      addFlagEmoji: false,
+    }
+  );
+  const keys = new Set(nodes.map(identity));
+  return sources.filter((source) => manualProxyKeys([source]).some((key) => keys.has(key)));
+}
+
 export function sortShadowrocketProxies(proxies, preferredKeys = []) {
   const ranks = new Map(preferredKeys.map((key, index) => [key, index]));
   const rank = (proxy) => {
