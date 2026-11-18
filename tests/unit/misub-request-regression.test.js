@@ -39,6 +39,70 @@ function silenceExpectedRequestLogs() {
 }
 
 describe('handleMisubRequest regression coverage', () => {
+    it('shows a separate VPS balance only for subscribers receiving that node', async () => {
+        const vps = {
+            id: 'la',
+            name: '洛杉矶',
+            enabled: true,
+            url: 'trojan://sample@la.example.com:443#LA',
+            vpsTraffic: {
+                enabled: true,
+                quotaGb: 500,
+                timeZone: 'UTC',
+                resetDay: 22,
+                resetTime: '00:00',
+                sourceUrl: 'https://metrics.example.com/usage',
+            },
+        };
+        const other = {
+            id: 'hk',
+            name: 'HK',
+            enabled: true,
+            url: 'trojan://other@hk.example.com:443#HK',
+        };
+        const adapter = createStorageAdapter({
+            settings: { profileToken: 'test-share', enableTrafficNode: false },
+            subscriptions: [vps, other],
+            profiles: [
+                { id: 'la-profile', name: 'LA', enabled: true, manualNodes: ['la'] },
+                { id: 'hk-profile', name: 'HK', enabled: true, manualNodes: ['hk'] },
+            ],
+        });
+        createAdapter.mockReturnValue(adapter);
+        const { vpsBillingPeriod } = await import('../../shared/vps-traffic.js');
+        const fetch = vi.fn(async () =>
+            Response.json({
+                periodStart: vpsBillingPeriod(vps.vpsTraffic),
+                timeZone: 'UTC',
+                usedBytes: 137400000000,
+            })
+        );
+        vi.stubGlobal('fetch', fetch);
+        const { handleMisubRequest } =
+            await import('../../functions/modules/subscription/main-handler.js');
+        const request = async (id) => {
+            const response = await handleMisubRequest({
+                request: new Request(`https://misub.example/test-share/${id}?target=base64`, {
+                    headers: { 'User-Agent': 'Shadowrocket' },
+                }),
+                env: { VPS_TRAFFIC_ALLOWED_HOSTS: 'metrics.example.com' },
+                waitUntil: vi.fn(),
+            });
+            expect(response.status).toBe(200);
+            expect(response.headers.get('Subscription-Userinfo')).toBeNull();
+            return decodeURIComponent(
+                Buffer.from((await response.text()).trim(), 'base64').toString('utf8')
+            );
+        };
+        expect(await request('hk-profile')).not.toContain('500 GB');
+        expect(fetch).not.toHaveBeenCalled();
+        const body = await request('la-profile');
+        expect(body).toContain('洛杉矶 剩余 362.6 / 500 GB');
+        expect(body).not.toContain('metrics.example.com');
+        expect(await request('la-profile')).toBe(body);
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('serves full shared client profiles and refuses invalid full output without Base64 fallback', async () => {
         const adapter = createStorageAdapter({
             settings: {

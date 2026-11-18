@@ -33,7 +33,10 @@ export function useNodeForms({ addNode, updateNode }) {
             console.debug('UseNodeForms: openEdit called with', node);
         }
         isNew.value = false;
-        editingNode.value = { ...node };
+        editingNode.value = {
+            ...node,
+            ...(node.vpsTraffic ? { vpsTraffic: { ...node.vpsTraffic } } : {}),
+        };
         if (isDev) {
             console.debug('UseNodeForms: editingNode set to', editingNode.value);
         }
