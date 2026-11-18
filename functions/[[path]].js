@@ -211,7 +211,7 @@ export async function onRequest(context) {
                     return createJsonResponse({ error: 'Unauthorized' }, 401);
                 }
 
-                return await handleCronTrigger(env, url.searchParams.get('task'));
+                return await handleCronTrigger(env);
             } else {
                 const isLocalhost = ['localhost', '127.0.0.1'].includes(url.hostname);
 

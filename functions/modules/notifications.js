@@ -6,7 +6,6 @@
 
 import { formatBytes } from './utils.js';
 import { refreshSubscription } from '../services/subscription-refresh-service.js';
-import { refreshVpsTraffic } from '../services/vps-traffic-service.js';
 import { KV_KEY_SUBS, KV_KEY_SETTINGS, DEFAULT_SETTINGS, SYSTEM_CONSTANTS } from './config.js';
 // 导入核心通知服务及工具
 import {
@@ -113,7 +112,7 @@ export async function checkAndNotify(sub, settings, env) {
 /**
  * 处理定时任务的通知更新（并行处理版本）
  */
-export async function handleCronTrigger(env, task = '') {
+export async function handleCronTrigger(env) {
     const { StorageFactory } = await import('../storage-adapter.js');
 
     const storageAdapter = await StorageFactory.createAdapter(
@@ -121,10 +120,6 @@ export async function handleCronTrigger(env, task = '') {
         await StorageFactory.getStorageType(env)
     );
     const originalSubs = await loadSubscriptionsForCron(storageAdapter);
-    const vpsTraffic = await refreshVpsTraffic(storageAdapter, originalSubs, env);
-    if (task === 'vps-traffic') {
-        return Response.json({ success: true, vpsTraffic });
-    }
     const allSubs = JSON.parse(JSON.stringify(originalSubs));
     const settings = (await storageAdapter.get(KV_KEY_SETTINGS)) || DEFAULT_SETTINGS;
 
@@ -294,7 +289,6 @@ export async function handleCronTrigger(env, task = '') {
     const duration = Date.now() - startTime;
     const summary = {
         success: true,
-        vpsTraffic,
         summary: {
             total: httpSubscriptions.length,
             updated: updatedCount,
