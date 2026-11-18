@@ -85,6 +85,7 @@ describe('Shadowrocket native configuration', () => {
       expect(fetch).not.toHaveBeenCalled();
       const output = await ProcessorService.renderOutput(custom);
       expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ redirect: 'manual' }));
       expect(output.headers['X-MiSub-Shadowrocket-Rules']).toBe('aggregated');
       expect(output.content).toContain('DOMAIN-SUFFIX,chatgpt.com,OpenAI-US,force-remote-dns');
       expect(output.content).not.toContain('DOMAIN-SUFFIX,chatgpt.com,DIRECT');
