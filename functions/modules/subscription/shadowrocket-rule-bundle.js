@@ -38,7 +38,7 @@ export function parseShadowrocketRuleBundle(text) {
 async function fetchRuleBundle() {
     const response = await fetch(BUNDLE_URL, {
         headers: { Accept: 'text/plain' },
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(4000),
     });
     if (!response.ok || !response.body) throw new Error(`Rule bundle HTTP ${response.status}`);
