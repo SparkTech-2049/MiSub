@@ -1307,12 +1307,14 @@ export async function handleMisubRequest(context) {
         });
     }
 
-    if (
+    const isShadowrocketNodeFeed =
         targetFormat === 'base64' &&
         (/shadowrocket/i.test(userAgentHeader) ||
-            url.searchParams.get('node-order') === 'manual-region')
-    ) {
-        combinedNodeList = sortShadowrocketNodeList(combinedNodeList, manualProxyKeys(allMisubs));
+            url.searchParams.get('node-order') === 'manual-region');
+    if (isShadowrocketNodeFeed) {
+        combinedNodeList = sortShadowrocketNodeList(combinedNodeList, manualProxyKeys(allMisubs), {
+            compactNames: true,
+        });
     }
     if (targetFormat === 'base64') {
         let contentToEncode;
@@ -1325,6 +1327,9 @@ export async function handleMisubRequest(context) {
             'Content-Type': 'text/plain; charset=utf-8',
             'Cache-Control': 'no-store, no-cache',
         };
+        if (isShadowrocketNodeFeed) {
+            headers['Profile-Title'] = `base64:${base64EncodeUtf8(`${subName} 节点`)}`;
+        }
         Object.entries(cacheHeaders).forEach(([key, value]) => {
             headers[key] = value;
         });

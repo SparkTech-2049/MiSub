@@ -33,7 +33,9 @@
     const canvasRef = ref(null);
     const importMode = ref('universal');
     const payload = computed(() =>
-        props.subscription ? shadowrocketQrPayload(props.url, importMode.value) : props.url
+        props.subscription
+            ? shadowrocketQrPayload(props.url, importMode.value, props.title)
+            : props.url
     );
     const importHint = computed(() =>
         importMode.value === 'shadowrocket-config'

@@ -87,9 +87,9 @@
 
         const link =
             format === 'shadowrocket-config'
-                ? shadowrocketConfigUrl(baseUrl.value)
+                ? shadowrocketConfigUrl(baseUrl.value, props.profile?.name)
                 : format === 'shadowrocket-nodes'
-                  ? shadowrocketNodesUrl(baseUrl.value)
+                  ? shadowrocketNodesUrl(baseUrl.value, props.profile?.name)
                   : `${baseUrl.value}${format}`;
 
         try {
@@ -190,7 +190,7 @@
                             </p>
                             <a
                                 v-if="client.type === 'shadowrocket-config'"
-                                :href="shadowrocketConfigUrl(baseUrl)"
+                                :href="shadowrocketConfigUrl(baseUrl, profile?.name)"
                                 download
                                 @click.stop
                                 class="mt-2 inline-block text-sm font-medium text-primary-600 underline dark:text-primary-400"

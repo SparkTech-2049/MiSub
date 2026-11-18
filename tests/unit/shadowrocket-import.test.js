@@ -21,7 +21,7 @@ const global = () => ({
 describe('Shadowrocket import entry points', () => {
   it('preserves the generic QR until a client action is selected', async () => {
     const wrapper = mount(QRCodeModal, {
-      props: { show: true, url: base, subscription: true },
+      props: { show: true, url: base, title: 'iOS-Shadowrocket', subscription: true },
       global: global(),
     });
     await flushPromises();
@@ -32,14 +32,17 @@ describe('Shadowrocket import entry points', () => {
     const payload = QRCode.toCanvas.mock.lastCall[1];
     expect(payload.startsWith('shadowrocket://config/add/')).toBe(true);
     const url = new URL(decodeURIComponent(payload.slice('shadowrocket://config/add/'.length)));
-    expect(url.origin + url.pathname).toBe(base);
+    expect(url.origin + url.pathname).toBe(base + '/iOS-Shadowrocket.conf');
     expect(url.searchParams.get('target')).toBe('shadowrocket');
     expect(url.searchParams.get('client')).toBe('shadowrocket');
     await wrapper.get('select').setValue('shadowrocket-nodes');
     await flushPromises();
-    const nodes = new URL(
-      atob(QRCode.toCanvas.mock.lastCall[1].slice('shadowrocket://add/sub://'.length))
-    );
+    const [encodedNodes, params] = QRCode.toCanvas.mock.lastCall[1]
+      .slice('shadowrocket://add/sub://'.length)
+      .split('?');
+    const nodes = new URL(atob(encodedNodes));
+    expect(nodes.origin + nodes.pathname).toBe(base + '/iOS-Shadowrocket-nodes');
+    expect(new URLSearchParams(params).get('remark')).toBe('iOS-Shadowrocket 节点');
     expect(nodes.searchParams.get('target')).toBe('base64');
     expect(nodes.searchParams.has('client')).toBe(false);
     await wrapper.setProps({ show: false });

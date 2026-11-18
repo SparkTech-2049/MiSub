@@ -1,6 +1,6 @@
 import { guardClashPolicyConfig, isProtectedPolicy } from './policy-guard.js';
 import { parseRoutingRule } from './rule-syntax.js';
-import { sortShadowrocketProxies } from './shadowrocket-order.js';
+import { shadowrocketProxyNames, sortShadowrocketProxies } from './shadowrocket-order.js';
 
 // Native Shadowrocket syntax, distinct from Surge and Mihomo YAML.
 // Reference: https://github.com/LOWERTOP/Shadowrocket/blob/main/lazy_group.conf
@@ -149,11 +149,11 @@ export function renderShadowrocketConfig(source, options = {}) {
     throw new Error('Unsupported Shadowrocket host or proxy provider configuration');
   const proxies = sortShadowrocketProxies(config.proxies, options.preferredProxyKeys);
   const aliases = new Map();
-  const occupied = new Set([
-    ...proxies.map((proxy) => proxy.name),
-    ...config['proxy-groups'].map((group) => group.name),
-  ]);
-  for (const original of occupied) {
+  const groupNames = config['proxy-groups'].map((group) => group.name);
+  const shorterNames = shadowrocketProxyNames(proxies, groupNames);
+  proxies.forEach((proxy, index) => aliases.set(proxy.name, shorterNames[index]));
+  const occupied = new Set([...shorterNames, ...groupNames]);
+  for (const original of groupNames) {
     if (/[\r\n]/.test(original)) throw new Error('Invalid Shadowrocket policy name');
     const replacements = { ',': '，', '=': '＝', '"': '＂', '\\': '＼' };
     let alias = original.replace(/[,="\\]/g, (char) => replacements[char]).trim();
@@ -200,7 +200,11 @@ export function renderShadowrocketConfig(source, options = {}) {
     '[Proxy Group]',
   ];
   const ranks = new Map(proxies.map((proxy, index) => [proxy.name, index]));
-  for (const group of config['proxy-groups']) {
+  const priority = ['OpenAI-US', 'Claude-US', 'Gemini-US', 'Google-US', 'PROXY'];
+  const groupRank = (group) =>
+    priority.includes(group.name) ? priority.indexOf(group.name) : priority.length;
+  const orderedGroups = [...config['proxy-groups']].sort((a, b) => groupRank(a) - groupRank(b));
+  for (const group of orderedGroups) {
     if (!['select', 'url-test', 'fallback'].includes(group.type))
       throw new Error('Unsupported Shadowrocket native policy type');
     const supported = new Set([
