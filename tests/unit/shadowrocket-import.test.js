@@ -33,7 +33,7 @@ describe('Shadowrocket import entry points', () => {
     expect(payload.startsWith('shadowrocket://config/add/')).toBe(true);
     const url = new URL(decodeURIComponent(payload.slice('shadowrocket://config/add/'.length)));
     expect(url.origin + url.pathname).toBe(base);
-    expect(url.searchParams.get('target')).toBe('clash');
+    expect(url.searchParams.get('target')).toBe('shadowrocket');
     expect(url.searchParams.get('client')).toBe('shadowrocket');
     await wrapper.get('select').setValue('shadowrocket-nodes');
     await flushPromises();
@@ -81,7 +81,7 @@ describe('Shadowrocket import entry points', () => {
       'shadowrocket-config'
     );
     const url = new URL(decodeURIComponent(payload.slice('shadowrocket://config/add/'.length)));
-    expect(url.searchParams.get('target')).toBe('clash');
+    expect(url.searchParams.get('target')).toBe('shadowrocket');
     expect(url.searchParams.get('client')).toBe('shadowrocket');
     expect(url.searchParams.has('list')).toBe(false);
   });

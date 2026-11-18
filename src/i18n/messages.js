@@ -1378,7 +1378,8 @@ export const messages = {
         copyLink: {
             shadowrocketConfig: 'Shadowrocket 小火箭（完整配置）',
             shadowrocketConfigHint:
-                '含节点、代理分组和规则。复制后粘贴到小火箭「配置 → +」下载并启用；需使用统一代理模板与内置引擎。',
+                '原生 .conf 文件，含节点、代理分组和规则。复制链接后粘贴到小火箭「配置 → +」下载并启用，也可直接下载文件。',
+            downloadShadowrocketConfig: '下载 .conf 配置文件',
             shadowrocketNodes: 'Shadowrocket 小火箭（仅节点）',
             shadowrocketNodesHint: '用于首页添加订阅，不包含代理分组和分流规则。',
             autoDetect: '默认 (自动探测)',
@@ -1418,7 +1419,7 @@ export const messages = {
             universalHint:
                 '通用地址不保证可被小火箭扫码识别。需要代理分组时，请选择“小火箭（完整配置）”。',
             shadowrocketConfigHint:
-                '使用小火箭扫描以打开完整配置安装；若相册扫码不识别，请用“复制订阅 → 小火箭（完整配置）”，粘贴到「配置 → +」。',
+                '此二维码用于打开配置安装链接，小火箭内置扫码可能无反应。建议使用“复制订阅 → 小火箭（完整配置）”复制链接或下载 .conf 文件。',
             shadowrocketNodesHint: '使用小火箭扫描以添加节点订阅；此项不会安装代理分组和规则。',
             privateLinkHint: '二维码含私人订阅凭据，请勿公开分享。',
             title: '二维码',
@@ -3312,7 +3313,8 @@ export const messages = {
         copyLink: {
             shadowrocketConfig: 'Shadowrocket (full configuration)',
             shadowrocketConfigHint:
-                'Includes nodes, policy groups and rules. Paste into Shadowrocket Config → +, download and enable. Requires the unified template and built-in engine.',
+                'Native .conf with nodes, policy groups and rules. Paste the link into Shadowrocket Config → +, download and enable, or download the file directly.',
+            downloadShadowrocketConfig: 'Download .conf configuration',
             shadowrocketNodes: 'Shadowrocket (nodes only)',
             shadowrocketNodesHint:
                 'For adding a subscription on Home. Does not include policy groups or routing rules.',
@@ -3354,7 +3356,7 @@ export const messages = {
             universalHint:
                 'Shadowrocket may not recognize a plain subscription URL when scanning. Choose full configuration for policy groups.',
             shadowrocketConfigHint:
-                'Scan in Shadowrocket to open configuration installation. If photo scanning fails, copy the full configuration link and paste into Config → +.',
+                'This QR opens a configuration installation link. Shadowrocket’s built-in scanner may not respond; copy the full configuration link or download the .conf file instead.',
             shadowrocketNodesHint:
                 'Scan in Shadowrocket to add a node subscription. Policy groups and rules are not installed.',
             privateLinkHint:

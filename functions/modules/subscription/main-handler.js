@@ -1,5 +1,6 @@
 import { StorageFactory } from '../../storage-adapter.js';
 import { resolveClientProfile } from './client-profile.js';
+import { manualProxyKeys, sortShadowrocketNodeList } from './shadowrocket-order.js';
 import {
     migrateConfigSettings,
     formatBytes,
@@ -819,12 +820,19 @@ export async function handleMisubRequest(context) {
     } catch {
         return new Response('Unknown full configuration client', { status: 400 });
     }
+    if (targetFormat === 'shadowrocket' && !clientProfile) clientProfile = 'shadowrocket';
+    // Existing explicit iOS links migrate to native conf too; Windows stays YAML.
+    if (clientProfile === 'shadowrocket' && targetFormat === 'clash') targetFormat = 'shadowrocket';
     if (
         clientProfile &&
-        (targetFormat !== 'clash' || isExternalMode || url.searchParams.get('list') === 'true')
+        ((clientProfile === 'shadowrocket'
+            ? targetFormat !== 'shadowrocket'
+            : targetFormat !== 'clash') ||
+            isExternalMode ||
+            url.searchParams.get('list') === 'true')
     ) {
         return new Response(
-            'Full client configurations require target=clash and the built-in engine without list=true',
+            'Full client configurations require their matching target and the built-in engine without list=true',
             { status: 400 }
         );
     }
@@ -1115,7 +1123,7 @@ export async function handleMisubRequest(context) {
             (sub) => sub?.enabled && typeof sub?.url === 'string' && !sub.url.startsWith('http')
         ).length;
 
-    const { combinedNodeList, cacheHeaders } = await resolveNodeListWithCache({
+    let { combinedNodeList, cacheHeaders } = await resolveNodeListWithCache({
         storageAdapter,
         cacheKey,
         forceRefresh,
@@ -1299,6 +1307,13 @@ export async function handleMisubRequest(context) {
         });
     }
 
+    if (
+        targetFormat === 'base64' &&
+        (/shadowrocket/i.test(userAgentHeader) ||
+            url.searchParams.get('node-order') === 'manual-region')
+    ) {
+        combinedNodeList = sortShadowrocketNodeList(combinedNodeList, manualProxyKeys(allMisubs));
+    }
     if (targetFormat === 'base64') {
         let contentToEncode;
         if (isProfileExpired) {
@@ -1365,6 +1380,7 @@ export async function handleMisubRequest(context) {
         managedConfigUrl: '',
         clientProfile,
         strictPolicies: Boolean(clientProfile),
+        preferredProxyKeys: clientProfile === 'shadowrocket' ? manualProxyKeys(allMisubs) : [],
         interval: config.UpdateInterval || 86400,
         skipCertVerify: finalSkipCertVerify,
         enableUdp: finalEnableUdp,
@@ -1385,6 +1401,7 @@ export async function handleMisubRequest(context) {
     const shouldUseBuiltin =
         useBuiltin &&
         (targetFormat === 'clash' ||
+            targetFormat === 'shadowrocket' ||
             targetFormat === 'egern' ||
             targetFormat.startsWith('surge') ||
             targetFormat === 'loon' ||
@@ -1404,6 +1421,7 @@ export async function handleMisubRequest(context) {
                 content: finalContent,
                 contentType,
                 headers: resultHeaders,
+                fileName: resultFileName,
             } = await ProcessorService.renderOutput({
                 targetFormat,
                 combinedNodeList,
@@ -1429,8 +1447,9 @@ export async function handleMisubRequest(context) {
 
             // [RFC 6266 / RFC 5987] Standardized Content-Disposition
             // filename: ASCII-only fallback, filename*: UTF-8 encoded
-            const asciiSubName = subName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
-            const encodedSubName = encodeURIComponent(subName)
+            const downloadName = resultFileName || subName;
+            const asciiSubName = downloadName.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '\\"');
+            const encodedSubName = encodeURIComponent(downloadName)
                 .replace(/'/g, '%27')
                 .replace(/\(/g, '%28')
                 .replace(/\)/g, '%29')

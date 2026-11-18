@@ -25,14 +25,14 @@ describe('QuickImportModal', () => {
             global: globalOptions(),
         });
         expect(wrapper.find('input[readonly]').element.value).toBe(
-            'https://misub.example/profiles/p1?target=clash&client=shadowrocket'
+            'https://misub.example/profiles/p1?target=shadowrocket&client=shadowrocket'
         );
         const copyButton = wrapper
             .findAll('button')
             .find((button) => button.text() === 'Copy full configuration link');
         await copyButton.trigger('click');
         expect(writeText).toHaveBeenCalledWith(
-            'https://misub.example/profiles/p1?target=clash&client=shadowrocket'
+            'https://misub.example/profiles/p1?target=shadowrocket&client=shadowrocket'
         );
         await wrapper.find('button.group').trigger('click');
         expect(window.location.href).toContain('shadowrocket://add/sub://');
