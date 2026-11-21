@@ -3,6 +3,32 @@ import { parseRoutingRule } from './rule-syntax.js';
 import { shadowrocketProxyNames, sortShadowrocketProxies } from './shadowrocket-order.js';
 import { formatShadowrocketRuleBundle } from './shadowrocket-rule-bundle.js';
 
+const YOUTUBE_API_HOSTS = new Set([
+  'youtube.googleapis.com',
+  'youtubeembeddedplayer.googleapis.com',
+  'youtubei.googleapis.com',
+]);
+
+function orderYouTubeApiRules(rules) {
+  const googleRule = rules.findIndex(
+    (rule) =>
+      rule.type === 'domain-suffix' && rule.value === 'googleapis.com' && rule.policy === 'Google-US'
+  );
+  if (googleRule < 0) return rules;
+
+  const youtubeRules = new Set(
+    rules.slice(googleRule + 1).filter(
+      (rule) =>
+        rule.type === 'domain' && rule.policy === 'YouTube' && YOUTUBE_API_HOSTS.has(rule.value)
+    )
+  );
+  return [
+    ...rules.slice(0, googleRule),
+    ...youtubeRules,
+    ...rules.slice(googleRule).filter((rule) => !youtubeRules.has(rule)),
+  ];
+}
+
 // Native Shadowrocket syntax, distinct from Surge and Mihomo YAML.
 // Reference: https://github.com/LOWERTOP/Shadowrocket/blob/main/lazy_group.conf
 function scalar(value, label = 'value') {
@@ -145,7 +171,8 @@ export function renderShadowrocketConfig(source, options = {}) {
     !Array.isArray(config.rules)
   )
     throw new Error('Incomplete Shadowrocket source configuration');
-  guardClashPolicyConfig(config, config.rules.map(parseRoutingRule));
+  const rules = config.rules.map(parseRoutingRule);
+  guardClashPolicyConfig(config, rules);
   if (config.hosts || config['proxy-providers'])
     throw new Error('Unsupported Shadowrocket host or proxy provider configuration');
   const proxies = sortShadowrocketProxies(config.proxies, options.preferredProxyKeys);
@@ -235,8 +262,7 @@ export function renderShadowrocketConfig(source, options = {}) {
     );
   }
   sections.push('', '[Rule]');
-  for (const raw of config.rules) {
-    const rule = parseRoutingRule(raw);
+  for (const rule of orderYouTubeApiRules(rules)) {
     let value = rule.value;
     if (rule.type === 'rule-set') {
       const provider = config['rule-providers']?.[value];

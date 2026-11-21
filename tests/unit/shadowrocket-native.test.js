@@ -62,6 +62,41 @@ describe('Shadowrocket native configuration', () => {
     expect(output.content).toContain('DOMAIN-SUFFIX,chatgpt.com,OpenAI-US,force-remote-dns');
   });
 
+  it('routes known YouTube API hosts through the explicit YouTube policy before Google-US', async () => {
+    const apiRules = [
+      'DOMAIN,youtube.googleapis.com,YouTube,force-remote-dns',
+      'DOMAIN,youtubeembeddedplayer.googleapis.com,YouTube,force-remote-dns',
+      'DOMAIN,youtubei.googleapis.com,YouTube,force-remote-dns',
+    ];
+    const template = {
+      id: 'youtube',
+      content: [
+        '[Proxy Group]',
+        'YouTube = select, US-Self-LA, US-02',
+        'Google-US = select, US-Self-LA',
+        '[Rule]',
+        ...apiRules,
+        'DOMAIN,maps.googleapis.com,Google-US',
+        'MATCH,DIRECT',
+      ].join('\n'),
+    };
+    const output = await ProcessorService.renderOutput({
+      ...options,
+      templateSource: { kind: 'custom', value: template.id },
+      storageAdapter: { get: async () => [template] },
+    });
+    const rules = output.content.split('[Rule]\n')[1].trim().split('\n');
+    const googleRule = 'DOMAIN-SUFFIX,googleapis.com,Google-US,force-remote-dns';
+    expect(rules).toContain(googleRule);
+    for (const rule of apiRules) {
+      expect(rules).toContain(rule);
+      expect(rules.indexOf(rule)).toBeLessThan(rules.indexOf(googleRule));
+    }
+    expect(rules.indexOf('DOMAIN,maps.googleapis.com,Google-US,force-remote-dns')).toBeGreaterThan(
+      rules.indexOf(googleRule)
+    );
+  });
+
   it('serves the local rule snapshot before the upstream publication finishes', async () => {
     vi.resetModules();
     const { loadShadowrocketRuleBundle } = await import(
