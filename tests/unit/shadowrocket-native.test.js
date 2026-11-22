@@ -62,6 +62,31 @@ describe('Shadowrocket native configuration', () => {
     expect(output.content).toContain('DOMAIN-SUFFIX,chatgpt.com,OpenAI-US,force-remote-dns');
   });
 
+  it('uses the selected server only for rules with use-selected-proxy', async () => {
+    const template = {
+      id: 'selected-proxy',
+      content: [
+        '[Proxy Group]',
+        'PROXY = select, US-Self-LA, HK-01',
+        'Google-US = select, US-Self-LA',
+        '[Rule]',
+        'DOMAIN-SUFFIX,bybit.com,PROXY,use-selected-proxy,force-remote-dns',
+        'RULE-SET,https://example.org/crypto.list,PROXY,use-selected-proxy',
+        'DOMAIN-SUFFIX,example.com,PROXY,force-remote-dns',
+        'MATCH,DIRECT',
+      ].join('\n'),
+    };
+    const output = await ProcessorService.renderOutput({
+      ...options,
+      templateSource: { kind: 'custom', value: template.id },
+      storageAdapter: { get: async () => [template] },
+    });
+    expect(output.content).toContain('DOMAIN-SUFFIX,bybit.com,PROXY,force-remote-dns');
+    expect(output.content).toContain('RULE-SET,https://example.org/crypto.list,PROXY');
+    expect(output.content).toContain('DOMAIN-SUFFIX,example.com,MiSub 默认代理,force-remote-dns');
+    expect(output.content).not.toContain('use-selected-proxy');
+  });
+
   it('routes known YouTube API hosts through the explicit YouTube policy before Google-US', async () => {
     const apiRules = [
       'DOMAIN,youtube.googleapis.com,YouTube,force-remote-dns',
