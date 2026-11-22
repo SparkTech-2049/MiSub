@@ -275,9 +275,12 @@ export function renderShadowrocketConfig(source, options = {}) {
         throw new Error('Unsupported Shadowrocket rule provider');
       value = provider.url;
     }
-    if ((rule.extras || []).some((extra) => !['no-resolve', 'force-remote-dns'].includes(extra)))
+    const useSelectedProxy = rule.extras.includes('use-selected-proxy');
+    if (useSelectedProxy && rule.policy !== 'PROXY')
+      throw new Error('Selected Shadowrocket proxy requires a PROXY rule');
+    const extras = rule.extras.filter((extra) => extra !== 'use-selected-proxy');
+    if (extras.some((extra) => !['no-resolve', 'force-remote-dns'].includes(extra)))
       throw new Error('Unsupported Shadowrocket rule option');
-    const extras = [...(rule.extras || [])];
     if (
       ['domain', 'domain-suffix', 'domain-keyword'].includes(rule.type) &&
       isProtectedPolicy(rule.policy) &&
@@ -288,7 +291,7 @@ export function renderShadowrocketConfig(source, options = {}) {
       [
         ['match', 'final'].includes(rule.type) ? 'FINAL' : rule.type.toUpperCase(),
         ...(['match', 'final'].includes(rule.type) ? [] : [scalar(value)]),
-        name(rule.policy),
+        useSelectedProxy ? 'PROXY' : name(rule.policy),
         ...extras,
       ].join(',')
     );
